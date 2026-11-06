@@ -1,36 +1,52 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
   <title>الذكاء العربي الخارق</title>
+
   <style>
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       font-family: Arial, sans-serif;
       background: #101827;
       color: white;
     }
+
     header {
       padding: 22px;
       text-align: center;
       background: #17243a;
       border-bottom: 1px solid #34445e;
     }
-    header h1 { margin: 0 0 8px; color: #65d6c4; }
-    header p { margin: 0; color: #c6d1df; }
+
+    header h1 {
+      margin: 0 0 8px;
+      color: #65d6c4;
+    }
+
+    header p {
+      margin: 0;
+      color: #c6d1df;
+    }
+
     main {
       max-width: 760px;
       margin: 25px auto;
       padding: 15px;
     }
+
     .panel {
       background: #1a2940;
       border: 1px solid #34445e;
       border-radius: 16px;
       padding: 18px;
     }
+
     #chat {
       height: 360px;
       overflow-y: auto;
@@ -39,13 +55,16 @@
       border-radius: 12px;
       margin-bottom: 15px;
     }
+
     .message {
       padding: 12px;
       margin: 9px 0;
       border-radius: 12px;
-      line-height: 1.7;
+      line-height: 1.8;
       overflow-wrap: anywhere;
+      white-space: pre-wrap;
     }
+
     .user { background: #245b69; }
     .bot { background: #293b55; }
 
@@ -55,6 +74,7 @@
       gap: 10px;
       margin: 12px 0;
     }
+
     .bot-avatar {
       width: 54px;
       height: 54px;
@@ -63,6 +83,7 @@
       border-radius: 14px;
       border: 2px solid #65d6c4;
     }
+
     .bot-row .message.bot {
       flex: 1;
       min-width: 0;
@@ -79,7 +100,12 @@
       font-size: 16px;
       margin-bottom: 10px;
     }
-    textarea { min-height: 75px; resize: vertical; }
+
+    textarea {
+      min-height: 75px;
+      resize: vertical;
+    }
+
     button {
       border: 0;
       border-radius: 10px;
@@ -90,13 +116,9 @@
       font-weight: bold;
       cursor: pointer;
     }
+
     button:disabled { opacity: .5; }
-    .note {
-      color: #b8c5d6;
-      font-size: 13px;
-      line-height: 1.7;
-      margin-top: 18px;
-    }
+
     footer {
       text-align: center;
       color: #9eacc0;
@@ -105,7 +127,9 @@
     }
   </style>
 </head>
+
 <body>
+
   <header>
     <h1>الذكاء العربي الخارق</h1>
     <p>مساعدك الذكي باللغة التي تحبها</p>
@@ -113,7 +137,9 @@
 
   <main>
     <div class="panel">
+
       <label for="language">اختر اللغة</label>
+
       <select id="language">
         <option value="ar">العربية</option>
         <option value="en">English</option>
@@ -127,6 +153,7 @@
             src="./file_00000000eb688210be5b1ca9eaa5ef6d.png"
             alt="صورة المساعد"
           >
+
           <div class="message bot">
             أهلاً بك! أنا مساعد الذكاء العربي الخارق.
             كيف يمكنني مساعدتك اليوم؟
@@ -134,12 +161,15 @@
         </div>
       </div>
 
-      <textarea id="message" placeholder="اكتب سؤالك هنا..."></textarea>
-      <button id="send" onclick="sendMessage()">إرسال</button>
-      <p class="note">
-        هذه نسخة أولية قيد التطوير. قد تحتاج الإجابات إلى التحقق،
-        والخدمات الذكية الفعلية تحتاج إلى إعداد الخادم ومفتاح API.
-      </p>
+      <textarea
+        id="message"
+        placeholder="اكتب سؤالك هنا..."
+      ></textarea>
+
+      <button id="send" onclick="sendMessage()">
+        إرسال
+      </button>
+
     </div>
   </main>
 
@@ -152,6 +182,7 @@
       const input = document.getElementById("message");
       const chat = document.getElementById("chat");
       const button = document.getElementById("send");
+
       const message = input.value.trim();
 
       if (!message) return;
@@ -185,19 +216,26 @@
       try {
         const response = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json"
+          },
           body: JSON.stringify({ message })
         });
 
         const data = await response.json();
-        loading.textContent = data.reply || data.error || "لم يصل رد.";
+
+        loading.textContent =
+          data.reply || data.error || "لم يصل رد.";
+
       } catch (error) {
-        loading.textContent = "الخادم غير متصل حالياً. هذه نسخة قيد الإعداد.";
+        loading.textContent =
+          "الخادم غير متصل حالياً. حاول مرة أخرى.";
       }
 
       button.disabled = false;
       chat.scrollTop = chat.scrollHeight;
     }
   </script>
+
 </body>
 </html>
