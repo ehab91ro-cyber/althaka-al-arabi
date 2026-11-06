@@ -1,3 +1,4 @@
+
 const express = require("express");
 const OpenAI = require("openai");
 
@@ -6,30 +7,50 @@ const app = express();
 app.use(express.json({ limit: "10mb" }));
 app.use(express.static("public"));
 
+const client = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: "https://api.groq.com/openai/v1"
+});
+
 app.post("/api/chat", async (req, res) => {
   try {
-    const message = String(req.body.message || "");
+    const message = String(req.body.message || "").trim();
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.json({
-        reply: "مرحباً بك في الذكاء العربي الخارق! هذه نسخة تجريبية."
+    if (!message) {
+      return res.status(400).json({
+        error: "اكتب رسالتك أولاً."
       });
     }
 
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
+    if (!process.env.GROQ_API_KEY) {
+      return res.status(503).json({
+        error: "خدمة الذكاء الاصطناعي غير مهيأة."
+      });
+    }
+
+    const response = await client.chat.completions.create({
+      model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
+      messages: [
+        {
+          role: "system",
+          content: "أنت مساعد الذكاء العربي الخارق. أجب بوضوح ودقة، واستخدم لغة المستخدم."
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ]
     });
 
-    const response = await client.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-5-mini",
-      input: message
+    res.json({
+      reply: response.choices[0].message.content
     });
 
-    res.json({ reply: response.output_text });
   } catch (error) {
-    console.error(error);
+    console.error("Groq API error:", error.message);
+
     res.status(500).json({
-      error: "حدث خطأ، حاول مرة أخرى."
+      error: "تعذر الحصول على إجابة. حاول مرة أخرى."
     });
   }
 });
