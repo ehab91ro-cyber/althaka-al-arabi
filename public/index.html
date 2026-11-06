@@ -48,6 +48,27 @@
     }
     .user { background: #245b69; }
     .bot { background: #293b55; }
+
+    .bot-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .bot-avatar {
+      width: 54px;
+      height: 54px;
+      flex: 0 0 54px;
+      object-fit: cover;
+      border-radius: 14px;
+      border: 2px solid #65d6c4;
+    }
+    .bot-row .message.bot {
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+    }
+
     textarea, select {
       width: 100%;
       padding: 13px;
@@ -100,9 +121,16 @@
       </select>
 
       <div id="chat" aria-live="polite">
-        <div class="message bot">
-          أهلاً بك! أنا مساعد الذكاء العربي الخارق.
-          كيف يمكنني مساعدتك اليوم؟
+        <div class="bot-row">
+          <img
+            class="bot-avatar"
+            src="./file_00000000eb688210be5b1ca9eaa5ef6d.png"
+            alt="صورة المساعد"
+          >
+          <div class="message bot">
+            أهلاً بك! أنا مساعد الذكاء العربي الخارق.
+            كيف يمكنني مساعدتك اليوم؟
+          </div>
         </div>
       </div>
 
@@ -136,10 +164,22 @@
       input.value = "";
       button.disabled = true;
 
+      const botRow = document.createElement("div");
+      botRow.className = "bot-row";
+
+      const avatar = document.createElement("img");
+      avatar.className = "bot-avatar";
+      avatar.src = "./file_00000000eb688210be5b1ca9eaa5ef6d.png";
+      avatar.alt = "صورة المساعد";
+
       const loading = document.createElement("div");
       loading.className = "message bot";
       loading.textContent = "جاري التفكير...";
-      chat.appendChild(loading);
+
+      botRow.appendChild(avatar);
+      botRow.appendChild(loading);
+      chat.appendChild(botRow);
+
       chat.scrollTop = chat.scrollHeight;
 
       try {
