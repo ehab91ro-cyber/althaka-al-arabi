@@ -163,7 +163,9 @@ let audioBlob=null;
 let recorder=null;
 let audioChunks=[];
 
-function t(){return translations[languageSelect.value]||translations.ar}
+function t(){
+return translations[languageSelect.value]||translations.ar;
+}
 
 function updateLanguage(){
 const lang=languageSelect.value;
@@ -178,6 +180,7 @@ document.getElementById("takePhoto").textContent="📷 "+t().camera;
 const welcome=document.getElementById("welcome");
 if(welcome)welcome.textContent=t().welcome;
 }
+
 languageSelect.addEventListener("change",updateLanguage);
 
 function renderMarkdown(text){
@@ -191,7 +194,8 @@ const clean=DOMPurify.sanitize(html,{USE_PROFILES:{html:true}});
 const template=document.createElement("template");
 template.innerHTML=clean;
 template.content.querySelectorAll("a").forEach(a=>{
-a.target="_blank";a.rel="noopener noreferrer";
+a.target="_blank";
+a.rel="noopener noreferrer";
 });
 return template.content;
 }
@@ -200,32 +204,41 @@ async function copyText(text,btn){
 try{
 await navigator.clipboard.writeText(text);
 btn.textContent="✓ "+t().copied;
-}catch(e){btn.textContent=t().failed}
+}catch(e){
+btn.textContent=t().failed;
+}
 setTimeout(()=>btn.textContent="▢ "+t().copy,2000);
 }
 
 function addBotMessage(text){
 const row=document.createElement("div");
 row.className="bot-row";
+
 const avatar=document.createElement("img");
 avatar.className="bot-avatar";
 avatar.src="./file_00000000eb688210be5b1ca9eaa5ef6d.png";
 avatar.alt="صورة المساعد";
+
 const content=document.createElement("div");
 content.className="bot-content";
+
 const bar=document.createElement("div");
 bar.className="copy-bar";
+
 const copy=document.createElement("button");
 copy.className="copy-btn";
 copy.textContent="▢ "+t().copy;
 copy.onclick=()=>copyText(text,copy);
+
 const answer=document.createElement("div");
 answer.className="message bot";
 answer.appendChild(renderMarkdown(text));
+
 bar.appendChild(copy);
 content.append(bar,answer);
 row.append(avatar,content);
 chat.appendChild(row);
+
 return {answer,copy};
 }
 
@@ -249,17 +262,21 @@ renderPreview();
 
 function renderPreview(){
 preview.replaceChildren();
+
 attachments.forEach((file,index)=>{
 const item=document.createElement("div");
 item.className="preview-item";
+
 if(file.type.startsWith("image/")){
 const img=document.createElement("img");
 img.src=URL.createObjectURL(file);
 img.onload=()=>URL.revokeObjectURL(img.src);
 item.appendChild(img);
 }
+
 const name=document.createElement("span");
 name.textContent=file.name;
+
 const remove=document.createElement("button");
 remove.className="remove-file";
 remove.type="button";
@@ -269,18 +286,29 @@ remove.onclick=()=>{
 attachments.splice(index,1);
 renderPreview();
 };
+
 item.append(name,remove);
 preview.appendChild(item);
 });
+
 if(audioBlob){
 const item=document.createElement("div");
 item.className="preview-item";
-item.textContent="🎙 "+(languageSelect.value==="en"?"Audio recording":languageSelect.value==="tr"?"Ses kaydı":"تسجيل صوتي");
+item.textContent="🎙 "+(
+languageSelect.value==="en"?"Audio recording":
+languageSelect.value==="tr"?"Ses kaydı":"تسجيل صوتي"
+);
+
 const remove=document.createElement("button");
 remove.className="remove-file";
 remove.type="button";
 remove.textContent="×";
-remove.onclick=()=>{audioBlob=null;renderPreview();statusBox.textContent=""};
+remove.onclick=()=>{
+audioBlob=null;
+renderPreview();
+statusBox.textContent="";
+};
+
 item.appendChild(remove);
 preview.appendChild(item);
 }
@@ -289,36 +317,65 @@ preview.appendChild(item);
 document.getElementById("plus").onclick=()=>{
 plusMenu.classList.toggle("show");
 };
-document.getElementById("pickImage").onclick=()=>document.getElementById("imageInput").click();
-document.getElementById("pickFile").onclick=()=>document.getElementById("fileInput").click();
-document.getElementById("takePhoto").onclick=()=>document.getElementById("cameraInput").click();
 
-document.getElementById("imageInput").onchange=e=>{addFiles(e.target.files);e.target.value=""};
-document.getElementById("fileInput").onchange=e=>{addFiles(e.target.files);e.target.value=""};
-document.getElementById("cameraInput").onchange=e=>{addFiles(e.target.files);e.target.value=""};
+document.getElementById("pickImage").onclick=()=>{
+document.getElementById("imageInput").click();
+};
+
+document.getElementById("pickFile").onclick=()=>{
+document.getElementById("fileInput").click();
+};
+
+document.getElementById("takePhoto").onclick=()=>{
+document.getElementById("cameraInput").click();
+};
+
+document.getElementById("imageInput").onchange=e=>{
+addFiles(e.target.files);
+e.target.value="";
+};
+
+document.getElementById("fileInput").onchange=e=>{
+addFiles(e.target.files);
+e.target.value="";
+};
+
+document.getElementById("cameraInput").onchange=e=>{
+addFiles(e.target.files);
+e.target.value="";
+};
 
 micButton.onclick=async()=>{
 if(recorder&&recorder.state==="recording"){
 recorder.stop();
 return;
 }
+
 try{
 const stream=await navigator.mediaDevices.getUserMedia({audio:true});
 audioChunks=[];
 recorder=new MediaRecorder(stream);
-recorder.ondataavailable=e=>{if(e.data.size)audioChunks.push(e.data)};
+
+recorder.ondataavailable=e=>{
+if(e.data.size)audioChunks.push(e.data);
+};
+
 recorder.onstop=()=>{
-audioBlob=new Blob(audioChunks,{type:recorder.mimeType||"audio/webm"});
+audioBlob=new Blob(audioChunks,{
+type:recorder.mimeType||"audio/webm"
+});
 stream.getTracks().forEach(track=>track.stop());
 micButton.classList.remove("recording");
 micButton.textContent="🎙";
 statusBox.textContent=t().recorded;
 renderPreview();
 };
+
 recorder.start();
 micButton.classList.add("recording");
 micButton.textContent="■";
 statusBox.textContent=t().recording;
+
 }catch(error){
 statusBox.textContent=t().micError;
 }
@@ -326,15 +383,24 @@ statusBox.textContent=t().micError;
 
 async function sendMessage(){
 const message=input.value.trim();
-if((!message&&!attachments.length&&!audioBlob)||sendButton.disabled)return;
+
+if((!message&&!attachments.length&&!audioBlob)||sendButton.disabled){
+return;
+}
 
 const filesToSend=[...attachments];
 const audioToSend=audioBlob;
 const hasAttachments=filesToSend.length>0||Boolean(audioToSend);
 
-addUserMessage(message|| (audioToSend?"🎙":"📎"));
-if(filesToSend.length)addUserMessage("📎 "+filesToSend.map(f=>f.name).join("، "));
-if(audioToSend)addUserMessage("🎙");
+addUserMessage(message||(audioToSend?"🎙":"📎"));
+
+if(filesToSend.length){
+addUserMessage("📎 "+filesToSend.map(f=>f.name).join("، "));
+}
+
+if(audioToSend){
+addUserMessage("🎙");
+}
 
 input.value="";
 attachments=[];
@@ -342,6 +408,7 @@ audioBlob=null;
 renderPreview();
 plusMenu.classList.remove("show");
 statusBox.textContent="";
+
 sendButton.disabled=true;
 micButton.disabled=true;
 input.disabled=true;
@@ -351,40 +418,74 @@ chat.scrollTop=chat.scrollHeight;
 
 try{
 let response;
+
 if(hasAttachments){
 const form=new FormData();
 form.append("message",message);
 form.append("language",languageSelect.value);
-filesToSend.forEach(file=>form.append("files",file));
-if(audioToSend)form.append("audio",audioToSend,"recording.webm");
-response=await fetch("/api/chat",{method:"POST",body:form});
+
+filesToSend.forEach(file=>{
+form.append("files",file);
+});
+
+if(audioToSend){
+form.append("audio",audioToSend,"recording.webm");
+}
+
+response=await fetch("/api/chat",{
+method:"POST",
+body:form
+});
+
 }else{
 response=await fetch("/api/chat",{
 method:"POST",
 headers:{"Content-Type":"application/json"},
-body:JSON.stringify({message,language:languageSelect.value})
+body:JSON.stringify({
+message,
+language:languageSelect.value
+})
 });
 }
 
 let data;
-try{data=await response.json()}catch(e){throw new Error(t().error)}
-if(!response.ok)throw new Error(data.error||t().error);
 
-const reply=typeof data.reply==="string"&&data.reply.trim()?data.reply.trim():t().error;
-bot.answer.replaceChildren(renderMarkdown(reply));
-bot.copy.onclick=()=>copyText(reply,bot.copy);
-}catch(error){
-bot.answer.textContent=error.message||t().error;
+try{
+data=await response.json();
+}catch(e){
+throw new Error("تعذر قراءة استجابة الخادم. تحقق من سجلات Render.");
 }
 
+if(!response.ok){
+throw new Error(data.error||"حدث خطأ في الخادم. رمز الخطأ: "+response.status);
+}
+
+/* التصحيح الأساسي: الخادم يرسل answer وليس reply */
+const reply=
+typeof data.answer==="string"&&data.answer.trim()
+?data.answer.trim()
+:typeof data.reply==="string"&&data.reply.trim()
+?data.reply.trim()
+:"لم تصل إجابة من الخادم.";
+
+bot.answer.replaceChildren(renderMarkdown(reply));
+bot.copy.onclick=()=>copyText(reply,bot.copy);
+
+}catch(error){
+console.error("Chat request failed:",error);
+bot.answer.textContent=error.message||t().error;
+
+}finally{
 sendButton.disabled=false;
 micButton.disabled=false;
 input.disabled=false;
 input.focus();
 chat.scrollTop=chat.scrollHeight;
 }
+}
 
 sendButton.addEventListener("click",sendMessage);
+
 input.addEventListener("keydown",event=>{
 if(event.key==="Enter"&&!event.shiftKey){
 event.preventDefault();
