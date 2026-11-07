@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -6,10 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#101827">
 <title>الذكاء العربي الخارق</title>
-
 <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
-
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#101827;color:white}
@@ -19,6 +16,7 @@ header p{margin:0;color:#c6d1df}
 main{max-width:850px;margin:25px auto;padding:15px}
 .panel{background:#1a2940;border:1px solid #34445e;border-radius:16px;padding:18px}
 label{display:block;margin-bottom:8px;color:#65d6c4}
+select{width:100%;padding:13px;border-radius:10px;border:1px solid #536780;background:#101827;color:white;font-size:16px;margin-bottom:12px}
 #chat{height:480px;overflow-y:auto;padding:12px;background:#101827;border-radius:12px;margin-bottom:15px}
 .message{padding:13px;margin:9px 0;border-radius:12px;line-height:1.9;overflow-wrap:anywhere}
 .user{background:#245b69;white-space:pre-wrap}
@@ -27,25 +25,29 @@ label{display:block;margin-bottom:8px;color:#65d6c4}
 .bot-avatar{width:48px;height:48px;flex:0 0 48px;object-fit:cover;border-radius:14px;border:2px solid #65d6c4}
 .bot-content{flex:1;min-width:0}
 .copy-bar{display:flex;justify-content:flex-end;margin-bottom:5px}
+button{border:0;border-radius:10px;padding:11px 15px;background:#45c7b2;color:#09202a;font-size:16px;font-weight:bold;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
 .copy-btn{background:#344b65;color:white;padding:7px 12px;font-size:13px;border:1px solid #536780}
-.copy-btn:hover{background:#42617f}
-.message.bot h1,.message.bot h2,.message.bot h3,.message.bot h4{color:#65d6c4;line-height:1.5}
-.message.bot p{margin:10px 0}
-.message.bot ul,.message.bot ol{padding-inline-start:25px}
-.message.bot li{margin:5px 0}
-.message.bot blockquote{border-inline-start:3px solid #65d6c4;margin:12px 0;padding:8px 14px;background:#203149}
-.message.bot table{width:100%;border-collapse:collapse;margin:14px 0;display:block;overflow-x:auto}
-.message.bot th,.message.bot td{border:1px solid #536780;padding:9px;text-align:start;min-width:90px}
-.message.bot th{background:#344b65;color:#65d6c4}
+.message.bot h1,.message.bot h2,.message.bot h3{color:#65d6c4}
 .message.bot pre{background:#101827;padding:12px;border-radius:9px;overflow-x:auto;direction:ltr;text-align:left}
 .message.bot code{background:#101827;padding:3px 5px;border-radius:4px}
-.message.bot pre code{padding:0}
 .message.bot a{color:#65d6c4;overflow-wrap:anywhere}
-textarea,select{width:100%;padding:13px;border-radius:10px;border:1px solid #536780;background:#101827;color:white;font-size:16px;margin-bottom:10px}
-textarea{min-height:90px;resize:vertical}
-button{border:0;border-radius:10px;padding:13px 20px;background:#45c7b2;color:#09202a;font-size:16px;font-weight:bold;cursor:pointer}
-button:disabled{opacity:.5;cursor:not-allowed}
-#send{width:100%}
+.composer{background:#101827;border:1px solid #536780;border-radius:15px;padding:10px}
+textarea{width:100%;min-height:75px;max-height:180px;resize:vertical;background:transparent;color:white;border:0;outline:0;font-size:16px;padding:8px}
+.toolbar{display:flex;align-items:center;gap:9px}
+.tool{width:43px;height:43px;padding:0;border-radius:50%;font-size:23px;display:flex;align-items:center;justify-content:center}
+.send{margin-inline-start:auto;background:#65d6c4;font-size:23px}
+.mic{background:#344b65;color:white}
+.mic.recording{background:#d94b58;color:white}
+#plusMenu{display:none;background:#293b55;padding:9px;border-radius:10px;margin-bottom:10px;gap:8px;flex-wrap:wrap}
+#plusMenu.show{display:flex}
+#plusMenu button{background:#344b65;color:white;font-size:14px}
+#preview{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.preview-item{position:relative;background:#293b55;border:1px solid #536780;border-radius:9px;padding:7px;font-size:12px;max-width:110px;overflow-wrap:anywhere}
+.preview-item img{width:75px;height:65px;object-fit:cover;border-radius:6px;display:block}
+.remove-file{position:absolute;top:2px;inset-inline-end:2px;width:22px;height:22px;padding:0;border-radius:50%;background:#d94b58;color:white;font-size:14px}
+.hidden{display:none}
+#status{font-size:13px;color:#65d6c4;padding:5px}
 footer{text-align:center;color:#9eacc0;padding:25px;font-size:13px}
 @media(max-width:600px){
 header{padding:18px 10px}
@@ -57,7 +59,6 @@ main{margin:10px auto;padding:10px}
 }
 </style>
 </head>
-
 <body>
 <header>
 <h1>الذكاء العربي الخارق</h1>
@@ -66,9 +67,7 @@ main{margin:10px auto;padding:10px}
 
 <main>
 <div class="panel">
-
 <label id="languageLabel" for="language">اختر اللغة</label>
-
 <select id="language">
 <option value="ar">العربية</option>
 <option value="en">English</option>
@@ -79,235 +78,315 @@ main{margin:10px auto;padding:10px}
 <div class="bot-row">
 <img class="bot-avatar" src="./file_00000000eb688210be5b1ca9eaa5ef6d.png" alt="صورة المساعد">
 <div class="bot-content">
-<div class="message bot" id="welcome">
-أهلاً بك! أنا مساعد الذكاء العربي الخارق.
-كيف يمكنني مساعدتك اليوم؟
-</div>
+<div class="message bot" id="welcome">أهلاً بك! أنا مساعد الذكاء العربي الخارق. كيف يمكنني مساعدتك اليوم؟</div>
 </div>
 </div>
 </div>
 
+<div id="plusMenu">
+<button type="button" id="pickImage">🖼️ الصور</button>
+<button type="button" id="pickFile">📁 الملفات</button>
+<button type="button" id="takePhoto">📷 الكاميرا</button>
+</div>
+
+<input class="hidden" id="imageInput" type="file" accept="image/*" multiple>
+<input class="hidden" id="fileInput" type="file" multiple>
+<input class="hidden" id="cameraInput" type="file" accept="image/*" capture="environment">
+
+<div id="preview"></div>
+
+<div class="composer">
 <textarea id="message" placeholder="اكتب سؤالك هنا..."></textarea>
-<button id="send">إرسال</button>
-
+<div class="toolbar">
+<button class="tool" type="button" id="plus" title="إضافة مرفق">＋</button>
+<button class="tool mic" type="button" id="mic" title="تسجيل صوت">🎙</button>
+<button class="tool send" type="button" id="send" title="إرسال">➤</button>
+</div>
+<div id="status"></div>
+</div>
 </div>
 </main>
 
 <footer>© 2026 الذكاء العربي الخارق</footer>
 
 <script>
-const translations = {
-ar: {
-subtitle:"مساعدك الذكي باللغة التي تحبها",
-language:"اختر اللغة",
-placeholder:"اكتب سؤالك هنا...",
-send:"إرسال",
-thinking:"جاري التفكير...",
+const translations={
+ar:{
+subtitle:"مساعدك الذكي باللغة التي تحبها",language:"اختر اللغة",
+placeholder:"اكتب سؤالك هنا...",thinking:"جاري التفكير...",
 error:"الخادم غير متصل حالياً. حاول مرة أخرى.",
-copy:"نسخ الإجابة",
-copied:"تم النسخ!",
-failed:"تعذر النسخ",
-welcome:"أهلاً بك! أنا مساعد الذكاء العربي الخارق. كيف يمكنني مساعدتك اليوم؟"
+copy:"نسخ الإجابة",copied:"تم النسخ!",failed:"تعذر النسخ",
+welcome:"أهلاً بك! أنا مساعد الذكاء العربي الخارق. كيف يمكنني مساعدتك اليوم؟",
+images:"الصور",files:"الملفات",camera:"الكاميرا",
+recording:"جارٍ التسجيل... اضغط لإيقاف التسجيل",
+recorded:"تم تسجيل الصوت. يمكنك إرساله الآن.",
+micError:"تعذر تشغيل الميكروفون. تحقق من إذن الوصول.",
+empty:"اكتب رسالة أو أرفق ملفاً أو سجّل صوتاً.",
+remove:"حذف"
 },
-en: {
+en:{
 subtitle:"Your intelligent assistant in your preferred language",
-language:"Choose language",
-placeholder:"Type your question here...",
-send:"Send",
-thinking:"Thinking...",
-error:"The server is currently unavailable. Please try again.",
-copy:"Copy answer",
-copied:"Copied!",
-failed:"Copy failed",
-welcome:"Welcome! I am Super Arabic Intelligence. How can I help you today?"
+language:"Choose language",placeholder:"Type your question here...",
+thinking:"Thinking...",error:"The server is currently unavailable. Please try again.",
+copy:"Copy answer",copied:"Copied!",failed:"Copy failed",
+welcome:"Welcome! I am Super Arabic Intelligence. How can I help you today?",
+images:"Images",files:"Files",camera:"Camera",
+recording:"Recording... tap to stop",recorded:"Audio recorded. You can send it now.",
+micError:"Could not access the microphone. Check permissions.",
+empty:"Write a message, attach a file, or record audio.",remove:"Remove"
 },
-tr: {
+tr:{
 subtitle:"Tercih ettiğiniz dilde akıllı asistanınız",
-language:"Dil seçin",
-placeholder:"Sorunuzu buraya yazın...",
-send:"Gönder",
-thinking:"Düşünüyor...",
-error:"Sunucu şu anda bağlı değil. Tekrar deneyin.",
-copy:"Yanıtı kopyala",
-copied:"Kopyalandı!",
-failed:"Kopyalama başarısız",
-welcome:"Hoş geldiniz! Ben Süper Arap Yapay Zekâ Asistanıyım. Size nasıl yardımcı olabilirim?"
+language:"Dil seçin",placeholder:"Sorunuzu buraya yazın...",
+thinking:"Düşünüyor...",error:"Sunucu şu anda bağlı değil. Tekrar deneyin.",
+copy:"Yanıtı kopyala",copied:"Kopyalandı!",failed:"Kopyalama başarısız",
+welcome:"Hoş geldiniz! Ben Süper Arap Yapay Zekâ Asistanıyım. Size nasıl yardımcı olabilirim?",
+images:"Resimler",files:"Dosyalar",camera:"Kamera",
+recording:"Kaydediliyor... durdurmak için dokunun",
+recorded:"Ses kaydedildi. Şimdi gönderebilirsiniz.",
+micError:"Mikrofona erişilemiyor. İzinleri kontrol edin.",
+empty:"Bir mesaj yazın, dosya ekleyin veya ses kaydedin.",remove:"Sil"
 }
 };
 
 const input=document.getElementById("message");
 const chat=document.getElementById("chat");
-const button=document.getElementById("send");
+const sendButton=document.getElementById("send");
 const languageSelect=document.getElementById("language");
+const plusMenu=document.getElementById("plusMenu");
+const preview=document.getElementById("preview");
+const statusBox=document.getElementById("status");
+const micButton=document.getElementById("mic");
 
-function getLanguage(){
-return translations[languageSelect.value] || translations.ar;
-}
+let attachments=[];
+let audioBlob=null;
+let recorder=null;
+let audioChunks=[];
+
+function t(){return translations[languageSelect.value]||translations.ar}
 
 function updateLanguage(){
 const lang=languageSelect.value;
-const t=getLanguage();
-
 document.documentElement.lang=lang;
 document.documentElement.dir=lang==="ar"?"rtl":"ltr";
-
-document.getElementById("subtitle").textContent=t.subtitle;
-document.getElementById("languageLabel").textContent=t.language;
-input.placeholder=t.placeholder;
-button.textContent=t.send;
-
+document.getElementById("subtitle").textContent=t().subtitle;
+document.getElementById("languageLabel").textContent=t().language;
+input.placeholder=t().placeholder;
+document.getElementById("pickImage").textContent="🖼️ "+t().images;
+document.getElementById("pickFile").textContent="📁 "+t().files;
+document.getElementById("takePhoto").textContent="📷 "+t().camera;
 const welcome=document.getElementById("welcome");
-if(welcome) welcome.textContent=t.welcome;
+if(welcome)welcome.textContent=t().welcome;
 }
-
 languageSelect.addEventListener("change",updateLanguage);
 
 function renderMarkdown(text){
-if(!window.marked || !window.DOMPurify){
-const fallback=document.createElement("span");
-fallback.textContent=text;
-return fallback;
+if(!window.marked||!window.DOMPurify){
+const span=document.createElement("span");
+span.textContent=text;
+return span;
 }
-
 const html=marked.parse(text,{breaks:true,gfm:true});
 const clean=DOMPurify.sanitize(html,{USE_PROFILES:{html:true}});
 const template=document.createElement("template");
 template.innerHTML=clean;
-
-template.content.querySelectorAll("a").forEach(link=>{
-link.setAttribute("target","_blank");
-link.setAttribute("rel","noopener noreferrer");
+template.content.querySelectorAll("a").forEach(a=>{
+a.target="_blank";a.rel="noopener noreferrer";
 });
-
 return template.content;
 }
 
-async function copyText(text,buttonElement){
-const t=getLanguage();
-
+async function copyText(text,btn){
 try{
-if(navigator.clipboard && window.isSecureContext){
 await navigator.clipboard.writeText(text);
-}else{
-const area=document.createElement("textarea");
-area.value=text;
-area.style.position="fixed";
-area.style.opacity="0";
-document.body.appendChild(area);
-area.select();
-const success=document.execCommand("copy");
-area.remove();
-if(!success) throw new Error("Copy failed");
-}
-
-buttonElement.textContent="✓ "+t.copied;
-}catch(error){
-buttonElement.textContent=t.failed;
-}
-
-setTimeout(()=>{
-buttonElement.textContent="▢ "+getLanguage().copy;
-},2000);
+btn.textContent="✓ "+t().copied;
+}catch(e){btn.textContent=t().failed}
+setTimeout(()=>btn.textContent="▢ "+t().copy,2000);
 }
 
 function addBotMessage(text){
 const row=document.createElement("div");
 row.className="bot-row";
-
 const avatar=document.createElement("img");
 avatar.className="bot-avatar";
 avatar.src="./file_00000000eb688210be5b1ca9eaa5ef6d.png";
 avatar.alt="صورة المساعد";
-
 const content=document.createElement("div");
 content.className="bot-content";
-
-const copyBar=document.createElement("div");
-copyBar.className="copy-bar";
-
-const copyButton=document.createElement("button");
-copyButton.className="copy-btn";
-copyButton.type="button";
-copyButton.textContent="▢ "+getLanguage().copy;
-
+const bar=document.createElement("div");
+bar.className="copy-bar";
+const copy=document.createElement("button");
+copy.className="copy-btn";
+copy.textContent="▢ "+t().copy;
+copy.onclick=()=>copyText(text,copy);
 const answer=document.createElement("div");
 answer.className="message bot";
 answer.appendChild(renderMarkdown(text));
-
-copyButton.addEventListener("click",()=>{
-copyText(text,copyButton);
-});
-
-copyBar.appendChild(copyButton);
-content.appendChild(copyBar);
-content.appendChild(answer);
-row.appendChild(avatar);
-row.appendChild(content);
+bar.appendChild(copy);
+content.append(bar,answer);
+row.append(avatar,content);
 chat.appendChild(row);
-
-return {answer,copyButton};
+return {answer,copy};
 }
+
+function addUserMessage(text){
+const div=document.createElement("div");
+div.className="message user";
+div.textContent=text;
+chat.appendChild(div);
+}
+
+function addFiles(fileList){
+for(const file of fileList){
+if(attachments.length>=5){
+statusBox.textContent="يمكنك إرفاق خمسة ملفات كحد أقصى.";
+break;
+}
+attachments.push(file);
+}
+renderPreview();
+}
+
+function renderPreview(){
+preview.replaceChildren();
+attachments.forEach((file,index)=>{
+const item=document.createElement("div");
+item.className="preview-item";
+if(file.type.startsWith("image/")){
+const img=document.createElement("img");
+img.src=URL.createObjectURL(file);
+img.onload=()=>URL.revokeObjectURL(img.src);
+item.appendChild(img);
+}
+const name=document.createElement("span");
+name.textContent=file.name;
+const remove=document.createElement("button");
+remove.className="remove-file";
+remove.type="button";
+remove.textContent="×";
+remove.title=t().remove;
+remove.onclick=()=>{
+attachments.splice(index,1);
+renderPreview();
+};
+item.append(name,remove);
+preview.appendChild(item);
+});
+if(audioBlob){
+const item=document.createElement("div");
+item.className="preview-item";
+item.textContent="🎙 "+(languageSelect.value==="en"?"Audio recording":languageSelect.value==="tr"?"Ses kaydı":"تسجيل صوتي");
+const remove=document.createElement("button");
+remove.className="remove-file";
+remove.type="button";
+remove.textContent="×";
+remove.onclick=()=>{audioBlob=null;renderPreview();statusBox.textContent=""};
+item.appendChild(remove);
+preview.appendChild(item);
+}
+}
+
+document.getElementById("plus").onclick=()=>{
+plusMenu.classList.toggle("show");
+};
+document.getElementById("pickImage").onclick=()=>document.getElementById("imageInput").click();
+document.getElementById("pickFile").onclick=()=>document.getElementById("fileInput").click();
+document.getElementById("takePhoto").onclick=()=>document.getElementById("cameraInput").click();
+
+document.getElementById("imageInput").onchange=e=>{addFiles(e.target.files);e.target.value=""};
+document.getElementById("fileInput").onchange=e=>{addFiles(e.target.files);e.target.value=""};
+document.getElementById("cameraInput").onchange=e=>{addFiles(e.target.files);e.target.value=""};
+
+micButton.onclick=async()=>{
+if(recorder&&recorder.state==="recording"){
+recorder.stop();
+return;
+}
+try{
+const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+audioChunks=[];
+recorder=new MediaRecorder(stream);
+recorder.ondataavailable=e=>{if(e.data.size)audioChunks.push(e.data)};
+recorder.onstop=()=>{
+audioBlob=new Blob(audioChunks,{type:recorder.mimeType||"audio/webm"});
+stream.getTracks().forEach(track=>track.stop());
+micButton.classList.remove("recording");
+micButton.textContent="🎙";
+statusBox.textContent=t().recorded;
+renderPreview();
+};
+recorder.start();
+micButton.classList.add("recording");
+micButton.textContent="■";
+statusBox.textContent=t().recording;
+}catch(error){
+statusBox.textContent=t().micError;
+}
+};
 
 async function sendMessage(){
 const message=input.value.trim();
-const t=getLanguage();
+if((!message&&!attachments.length&&!audioBlob)||sendButton.disabled)return;
 
-if(!message || button.disabled) return;
+const filesToSend=[...attachments];
+const audioToSend=audioBlob;
+const hasAttachments=filesToSend.length>0||Boolean(audioToSend);
 
-const user=document.createElement("div");
-user.className="message user";
-user.textContent=message;
-chat.appendChild(user);
+addUserMessage(message|| (audioToSend?"🎙":"📎"));
+if(filesToSend.length)addUserMessage("📎 "+filesToSend.map(f=>f.name).join("، "));
+if(audioToSend)addUserMessage("🎙");
 
 input.value="";
-button.disabled=true;
+attachments=[];
+audioBlob=null;
+renderPreview();
+plusMenu.classList.remove("show");
+statusBox.textContent="";
+sendButton.disabled=true;
+micButton.disabled=true;
 input.disabled=true;
 
-const bot=addBotMessage(t.thinking);
+const bot=addBotMessage(t().thinking);
 chat.scrollTop=chat.scrollHeight;
 
 try{
-const response=await fetch("/api/chat",{
+let response;
+if(hasAttachments){
+const form=new FormData();
+form.append("message",message);
+form.append("language",languageSelect.value);
+filesToSend.forEach(file=>form.append("files",file));
+if(audioToSend)form.append("audio",audioToSend,"recording.webm");
+response=await fetch("/api/chat",{method:"POST",body:form});
+}else{
+response=await fetch("/api/chat",{
 method:"POST",
 headers:{"Content-Type":"application/json"},
-body:JSON.stringify({
-message:message,
-language:languageSelect.value
-})
+body:JSON.stringify({message,language:languageSelect.value})
 });
+}
 
 let data;
-try{
-data=await response.json();
-}catch(parseError){
-throw new Error(t.error);
-}
+try{data=await response.json()}catch(e){throw new Error(t().error)}
+if(!response.ok)throw new Error(data.error||t().error);
 
-if(!response.ok){
-throw new Error(data.error || t.error);
-}
-
-const reply=typeof data.reply==="string" && data.reply.trim()
-? data.reply.trim()
-: t.error;
-
+const reply=typeof data.reply==="string"&&data.reply.trim()?data.reply.trim():t().error;
 bot.answer.replaceChildren(renderMarkdown(reply));
-bot.copyButton.onclick=()=>copyText(reply,bot.copyButton);
-
+bot.copy.onclick=()=>copyText(reply,bot.copy);
 }catch(error){
-bot.answer.textContent=error.message || t.error;
+bot.answer.textContent=error.message||t().error;
 }
 
-button.disabled=false;
+sendButton.disabled=false;
+micButton.disabled=false;
 input.disabled=false;
 input.focus();
 chat.scrollTop=chat.scrollHeight;
 }
 
-button.addEventListener("click",sendMessage);
-
+sendButton.addEventListener("click",sendMessage);
 input.addEventListener("keydown",event=>{
-if(event.key==="Enter" && !event.shiftKey){
+if(event.key==="Enter"&&!event.shiftKey){
 event.preventDefault();
 sendMessage();
 }
