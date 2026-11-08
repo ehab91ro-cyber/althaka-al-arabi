@@ -1,6 +1,9 @@
 name: Validate JSON response contract
 
 on:
+  push:
+    branches:
+      - feature/json-contract-diagnostics
   pull_request:
     branches:
       - fix/news-relevance-filter
