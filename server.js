@@ -9,6 +9,8 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 const MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+const NEWS_WINDOW_MS = 24 * 60 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 20000;
 
 const LANGUAGES = {
   ar: "العربية",
@@ -16,21 +18,18 @@ const LANGUAGES = {
   tr: "Türkçe"
 };
 
-const NEWS_WINDOW_MS = 24 * 60 * 60 * 1000;
-const REQUEST_TIMEOUT_MS = 12000;
-
 function buildSystemPrompt(language, isNews = false, checkedAt = null) {
   const newsRules = isNews ? `
 قواعد الأخبار:
 - اعتمد على نتائج البحث الإخباري المرفقة فقط.
 - وقت التحقق حسب ساعة الخادم: ${checkedAt || "غير متاح"}.
-- لا تعرض خبراً ضمن آخر 24 ساعة إلا إذا اجتاز التحقق البرمجي.
-- استخدم تاريخ ووقت النشر الأصليين كما وردا في المصدر.
+- لا تعرض إلا الأخبار التي اجتازت التحقق البرمجي.
+- استخدم تاريخ ووقت النشر الأصليين كما وردا من المصدر.
 - لا تستنتج وقت النشر من تاريخ الفهرسة أو من تاريخ اليوم.
 - لا تخترع أوقاتاً أو روابط أو أسماء ناشرين.
-- اربط كل عنوان بمصدره ورابطه الصحيح.
-- إذا لم تتوفر أخبار كافية، صرّح بذلك.
-- نتائج Tavily ليست تحققاً مستقلاً من الصفحة الأصلية.
+- ضع رابط المقال الأصلي بجانب كل خبر.
+- إذا لم تتوفر أخبار كافية، صرّح بذلك بوضوح.
+- لا تعتبر نتائج محرك البحث تحققاً مستقلاً من محتوى الصفحة.
 ` : "";
 
   return `أنت مساعد الذكاء العربي الخارق.
@@ -61,13 +60,16 @@ async function fetchJson(url, options = {}) {
     ...options,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     headers: {
-      "User-Agent": "AlThakaAlArabi/1.4",
+      "User-Agent": "AlThakaAlArabi/2.0",
       ...(options.headers || {})
     }
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `HTTP ${response.status}: ${errorText.slice(0, 300)}`
+    );
   }
 
   return response.json();
@@ -80,7 +82,7 @@ function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[أإآ]/g, "ا")
     .replace(/ى/g, "ي")
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/[^ \p{L}\p{N}]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -177,7 +179,7 @@ async function safeSearch(query, isNews = false) {
   const apiKey = process.env.TAVILY_API_KEY;
 
   if (!apiKey) {
-    console.error("TAVILY_API_KEY is not configured.");
+    console.error("[Tavily] TAVILY_API_KEY is missing.");
     return [];
   }
 
@@ -185,8 +187,9 @@ async function safeSearch(query, isNews = false) {
     api_key: apiKey,
     query,
     search_depth: "advanced",
-    max_results: 8,
-    include_answer: false
+    max_results: 10,
+    include_answer: false,
+    include_raw_content: false
   };
 
   if (isNews) {
@@ -202,7 +205,13 @@ async function safeSearch(query, isNews = false) {
     body: JSON.stringify(body)
   });
 
-  return (data.results || []).map(item => ({
+  const results = Array.isArray(data.results) ? data.results : [];
+
+  console.log(
+    `[Tavily] Search completed. News=${isNews}, Results=${results.length}`
+  );
+
+  return results.map(item => ({
     source: "Tavily",
     title: item.title || "",
     text: item.content || "",
@@ -211,50 +220,90 @@ async function safeSearch(query, isNews = false) {
   }));
 }
 
+// يقبل تاريخاً ووقتاً واضحين مع منطقة زمنية صريحة.
+// لا يقبل التاريخ وحده لأنه لا يثبت ساعة النشر.
+function parsePublishedDate(value) {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  const date = value.trim();
+
+  const hasExplicitTimezone =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i.test(date);
+
+  if (!hasExplicitTimezone) {
+    return null;
+  }
+
+  const timestamp = Date.parse(date);
+
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+
+  return timestamp;
+}
+
+function isValidHttpsUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function filterRecentNews(results) {
   const checkedAt = Date.now();
 
-  return results.filter(item => {
-    const date = item.publishedDate;
+  const stats = {
+    received: results.length,
+    accepted: 0,
+    missingDate: 0,
+    invalidDate: 0,
+    outside24Hours: 0,
+    invalidUrl: 0
+  };
 
-    if (!date || typeof date !== "string") {
-      return false;
+  const accepted = [];
+
+  for (const item of results) {
+    if (!item.publishedDate) {
+      stats.missingDate++;
+      continue;
     }
 
-    // نقبل فقط تاريخاً ووقتاً مع منطقة زمنية صريحة.
-    const hasExplicitTimezone =
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i.test(date);
+    const publishedAt = parsePublishedDate(item.publishedDate);
 
-    if (!hasExplicitTimezone) {
-      return false;
-    }
-
-    const publishedAt = Date.parse(date);
-
-    if (!Number.isFinite(publishedAt)) {
-      return false;
+    if (publishedAt === null) {
+      stats.invalidDate++;
+      continue;
     }
 
     const age = checkedAt - publishedAt;
 
-    // آخر 24 ساعة فقط، مع رفض التواريخ المستقبلية.
     if (age < 0 || age > NEWS_WINDOW_MS) {
-      return false;
+      stats.outside24Hours++;
+      continue;
     }
 
-    // لا نقبل إلا روابط HTTPS صالحة.
-    try {
-      const url = new URL(item.url);
-
-      if (url.protocol !== "https:") {
-        return false;
-      }
-    } catch {
-      return false;
+    if (!isValidHttpsUrl(item.url)) {
+      stats.invalidUrl++;
+      continue;
     }
 
-    return true;
-  });
+    accepted.push(item);
+  }
+
+  stats.accepted = accepted.length;
+
+  console.log("[News filter]", JSON.stringify(stats));
+
+  return {
+    results: accepted,
+    stats
+  };
 }
 
 async function collectSources(message, language, needs) {
@@ -263,7 +312,7 @@ async function collectSources(message, language, needs) {
   if (needs.wikipedia) {
     tasks.push(
       searchWikipedia(message, language).catch(error => {
-        console.error("Wikipedia error:", error.message);
+        console.error("[Wikipedia error]", error.message);
         return [];
       })
     );
@@ -274,7 +323,7 @@ async function collectSources(message, language, needs) {
   if (needs.wikidata) {
     tasks.push(
       searchWikidata(message).catch(error => {
-        console.error("Wikidata error:", error.message);
+        console.error("[Wikidata error]", error.message);
         return [];
       })
     );
@@ -285,7 +334,7 @@ async function collectSources(message, language, needs) {
   if (needs.tavily) {
     tasks.push(
       safeSearch(message, needs.news).catch(error => {
-        console.error("Tavily error:", error.message);
+        console.error("[Tavily error]", error.message);
         return [];
       })
     );
@@ -296,15 +345,25 @@ async function collectSources(message, language, needs) {
   const [wikipedia, wikidata, tavily] =
     await Promise.all(tasks);
 
-  const searchResults = needs.news
-    ? filterRecentNews(tavily)
-    : tavily;
+  let searchResults = tavily;
+  let newsStats = null;
+
+  if (needs.news) {
+    const filtered = filterRecentNews(tavily);
+    searchResults = filtered.results;
+    newsStats = filtered.stats;
+  }
+
+  console.log(
+    `[Sources] Wikipedia=${wikipedia.length}, Wikidata=${wikidata.length}, Tavily=${searchResults.length}`
+  );
 
   return {
     wikipedia,
     wikidata,
     tavily: searchResults,
-    news: needs.news
+    news: needs.news,
+    newsStats
   };
 }
 
@@ -335,7 +394,9 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     service: "الذكاء العربي الخارق",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    searchConfigured: Boolean(process.env.TAVILY_API_KEY),
+    aiConfigured: Boolean(process.env.GROQ_API_KEY)
   });
 });
 
@@ -358,9 +419,11 @@ app.post("/api/chat", async (req, res) => {
     const language = detectLanguage(message);
     const languageName = LANGUAGES[language];
     const needs = detectSearchNeeds(message);
-
-    // تثبيت وقت التحقق من ساعة الخادم.
     const checkedAt = new Date().toISOString();
+
+    console.log(
+      `[Chat] New request. Language=${language}, News=${needs.news}, Tavily=${needs.tavily}`
+    );
 
     const sources = await collectSources(
       message,
@@ -390,8 +453,8 @@ app.post("/api/chat", async (req, res) => {
             `أجب بلغة ${languageName}.`
         }
       ],
-      temperature: 0.5,
-      max_tokens: 2000
+      temperature: 0.3,
+      max_tokens: 2500
     });
 
     const answer =
@@ -404,11 +467,15 @@ app.post("/api/chat", async (req, res) => {
         wikipedia: sources.wikipedia,
         wikidata: sources.wikidata,
         web: sources.tavily
+      },
+      diagnostics: {
+        newsSearch: sources.news,
+        newsStats: sources.newsStats
       }
     });
 
   } catch (error) {
-    console.error("Chat error:", error);
+    console.error("[Chat error]", error);
 
     return res.status(500).json({
       error: "حدث خطأ أثناء معالجة طلبك.",
