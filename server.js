@@ -293,8 +293,8 @@ async function searchWikidata(query, lang) {
 function buildNewsSearchQueries(message, lang) {
   const original = normalizeText(message, 380);
   const queries = [original];
-  const turkeyTerms = /(تركيا|التركية|تركي|turkey|turkish|türkiye|turkiye|ankara)/i;
-  const economyTerms = /(اقتصاد|اقتصادية|اقتصادي|التضخم|الليرة|البنك المركزي|الفائدة|أسعار|الأسواق|المالية|تجارة|صادرات|واردات|economy|economic|inflation|lira|central bank|interest rate|markets|finance|financial|trade|exports|imports)/i;
+  const turkeyTerms = /(تركيا|التركية|تركي|turkey|turkish|türkiye|turkiye|ankara|istanbul)/i;
+  const economyTerms = /(اقتصاد|اقتصادية|اقتصادي|التضخم|الليرة|البنك المركزي|الفائدة|أسعار|الأسواق|المالية|تجارة|صادرات|واردات|اقتصاد|اقتصادي|enflasyon|enflasyon oranı|türk lirası|lira|merkez bankası|faiz|faiz oranı|piyasalar|finans|ticaret|ihracat|ithalat|büyüme|işsizlik|bütçe|yatırım|sanayi|üretim|vergi|maaş|fiyat|döviz|kur|rezerv|cari açık|dış ticaret|kredi|economy|economic|inflation|central bank|interest rate|markets|finance|financial|trade|exports|imports)/i;
   if (turkeyTerms.test(original) && economyTerms.test(original)) {
     queries.push(
       'Turkey latest economic news inflation Turkish lira central bank interest rates markets trade today',
@@ -314,13 +314,13 @@ function buildNewsSearchQueries(message, lang) {
 function getNewsRelevanceProfile(message) {
   const value = String(message || '').toLowerCase();
   const turkeyRequested = /(تركيا|التركية|تركي|turkey|turkish|türkiye|turkiye|ankara)/i.test(value);
-  const economyRequested = /(اقتصاد|اقتصادية|اقتصادي|التضخم|الليرة|البنك المركزي|الفائدة|أسعار|الأسواق|المالية|تجارة|صادرات|واردات|economy|economic|inflation|lira|central bank|interest rate|markets|finance|financial|trade|exports|imports)/i.test(value);
+  const economyRequested = /(اقتصاد|اقتصادية|اقتصادي|التضخم|الليرة|البنك المركزي|الفائدة|أسعار|الأسواق|المالية|تجارة|صادرات|واردات|enflasyon|enflasyon oranı|türk lirası|lira|merkez bankası|faiz|faiz oranı|piyasalar|finans|ticaret|ihracat|ithalat|büyüme|işsizlik|bütçe|yatırım|sanayi|üretim|vergi|maaş|fiyat|döviz|kur|rezerv|cari açık|dış ticaret|kredi|economy|economic|inflation|central bank|interest rate|markets|finance|financial|trade|exports|imports)/i.test(value);
 
   if (turkeyRequested && economyRequested) {
     return {
       requiredGroups: [
         ['تركيا', 'التركية', 'تركي', 'turkey', 'turkish', 'türkiye', 'turkiye', 'ankara', 'istanbul'],
-        ['اقتصاد', 'اقتصادية', 'اقتصادي', 'التضخم', 'الليرة', 'البنك المركزي', 'الفائدة', 'المالية', 'الأسواق', 'صادرات', 'واردات', 'تجارة', 'economy', 'economic', 'inflation', 'lira', 'central bank', 'interest rate', 'finance', 'financial', 'markets', 'trade', 'exports', 'imports', 'monetary policy', 'currency']
+        ['اقتصاد', 'اقتصادية', 'اقتصادي', 'التضخم', 'الليرة', 'البنك المركزي', 'الفائدة', 'المالية', 'الأسواق', 'صادرات', 'واردات', 'تجارة', 'enflasyon', 'enflasyon oranı', 'türk lirası', 'lira', 'merkez bankası', 'faiz', 'faiz oranı', 'piyasalar', 'finans', 'ticaret', 'ihracat', 'ithalat', 'büyüme', 'işsizlik', 'bütçe', 'yatırım', 'sanayi', 'üretim', 'vergi', 'maaş', 'fiyat', 'döviz', 'kur', 'rezerv', 'cari açık', 'dış ticaret', 'kredi', 'economy', 'economic', 'inflation', 'central bank', 'interest rate', 'markets', 'finance', 'financial', 'trade', 'exports', 'imports', 'monetary policy', 'currency']
       ],
       label: 'Turkey economy'
     };
