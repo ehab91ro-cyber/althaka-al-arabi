@@ -1038,7 +1038,7 @@ function addSources(container, sources) {
 function addNewsVerification(container, verification) {
   if (!verification || typeof verification !== 'object') return;
 
-  const count = Number(verification.verifiedCount);
+  const count = verification.verifiedCount;
   if (!Number.isInteger(count) || count < 0) return;
 
   const box = document.createElement('div');
@@ -1061,7 +1061,7 @@ function addNewsVerification(container, verification) {
 }
 
 function addTranscription(container, transcript) {
-  if (!transcript) return;
+  if (typeof transcript !== 'string' || !transcript.trim()) return;
 
   const box = document.createElement("div");
   box.className = "transcription";
@@ -1183,10 +1183,21 @@ async function sendMessage() {
       );
     }
 
-    if (['ar', 'en', 'tr'].includes(data.language)) {
-      languageSelect.value = data.language;
-      updateLanguage();
+    if (!['ar', 'en', 'tr'].includes(data.language)) {
+      throw new Error('استجابة الخادم لا تطابق عقد JSON: حقل language غير صالح.');
     }
+    if (typeof data.answer !== 'string' || !data.answer.trim()) {
+      throw new Error('استجابة الخادم لا تطابق عقد JSON: حقل answer مفقود أو غير صالح.');
+    }
+    if (!Array.isArray(data.sources)) {
+      throw new Error('استجابة الخادم لا تطابق عقد JSON: حقل sources يجب أن يكون مصفوفة.');
+    }
+    if (!data.diagnostics || typeof data.diagnostics !== 'object' || Array.isArray(data.diagnostics)) {
+      throw new Error('استجابة الخادم لا تطابق عقد JSON: حقل diagnostics مفقود أو غير صالح.');
+    }
+
+    languageSelect.value = data.language;
+    updateLanguage();
 
     if (data.diagnostics && typeof data.diagnostics === 'object') {
       const diagnostic = data.diagnostics;
@@ -1199,12 +1210,7 @@ async function sendMessage() {
       });
     }
 
-    const reply =
-      typeof data.answer === "string" && data.answer.trim()
-        ? data.answer.trim()
-        : typeof data.reply === "string" && data.reply.trim()
-          ? data.reply.trim()
-          : "لم تصل إجابة من الخادم.";
+    const reply = data.answer.trim();
 
     bot.answer.replaceChildren(renderMarkdown(reply));
 
