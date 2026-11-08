@@ -15,12 +15,10 @@ app.use(express.json({ limit: '10mb' }));
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-// التأكد من وجود مجلد الواجهة الأمامية تلقائياً
 if (!fs.existsSync(PUBLIC_DIR)) {
   fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 }
 
-// إنشاء ملف الواجهة الأمامية HTML تلقائياً
 const HTML_CONTENT = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -266,6 +264,8 @@ const HTML_CONTENT = `<!DOCTYPE html>
 fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), HTML_CONTENT, 'utf8');
 app.use(express.static(PUBLIC_DIR));
 
-// الإعدادات والنماذج الحية المتطورة لـ Groq
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const VISION_MODEL = process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
+const AUDIO_MODEL = process.env.GROQ_AUDIO_MODEL || 'whisper-large-v3-turbo';
+
+const REQUEST_TIMEOUT_MS = 15000;
