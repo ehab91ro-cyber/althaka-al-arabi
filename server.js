@@ -11,6 +11,10 @@ app.use(express.static(path.join(__dirname, "public")));
 const MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 const NEWS_WINDOW_MS = 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 20000;
+const ARTICLE_TIMEOUT_MS = 10000;
+const MAX_ARTICLE_BYTES = 1024 * 1024;
+const MAX_ARTICLE_REDIRECTS = 3;
+const NEWS_VERIFY_CONCURRENCY = 4;
 
 const LANGUAGES = {
   ar: "العربية",
@@ -44,26 +48,23 @@ function buildSystemPrompt(
 - وقت التحقق حسب ساعة الخادم: ${checkedAt || "غير متاح"}.
 - بداية الفترة المطلوبة: ${windowStart}.
 - نهاية الفترة المطلوبة: ${windowEnd}.
-- الفترة المطلوبة هي آخر 24 ساعة محسوبة من وقت التحقق أعلاه.
-- لا تستخدم تاريخ اليوم وحده لتحديد الفترة.
-- لا تعرض أي خبر خارج الفترة المحددة.
-- لا تعرض أي خبر لم يجتز التحقق البرمجي.
-- عدد الأخبار المقبولة بعد الفلترة: ${newsStats?.accepted ?? 0}.
+- الفترة المطلوبة هي آخر 24 ساعة محسوبة من وقت التحقق.
 - عدد النتائج المستلمة: ${newsStats?.received ?? 0}.
-- إذا كان عدد الأخبار المقبولة صفراً، فلا تذكر أخباراً قديمة بديلاً عنها.
-- إذا كان عدد الأخبار المقبولة صفراً، صرّح بأنه لم يتم العثور على أخبار مستوفية للشروط.
-- لا تستنتج أن عدم العثور على نتائج يعني عدم وجود أخبار في الواقع.
+- عدد الأخبار المقبولة: ${newsStats?.accepted ?? 0}.
+- لا تعرض أي خبر خارج الفترة المحددة.
+- لا تعرض خبراً لم يجتز التحقق البرمجي من تاريخ صفحة المقال الأصلية.
+- لا تعتمد على تاريخ الفهرسة أو تاريخ تحديث الصفحة باعتباره تاريخ النشر.
 - لا تخترع أخباراً أو عناوين أو تواريخ أو أوقات أو ناشرين.
-- استخدم تاريخ ووقت النشر كما وردا في نتيجة البحث فقط.
-- لا تخلط بين تاريخ النشر وتاريخ التحديث وتاريخ وقوع الحدث.
-- لا تستنتج وقت النشر من تاريخ الفهرسة أو من تاريخ اليوم.
-- لا تعرض رابط الصفحة الرئيسية أو صفحة قسم أو تصنيف بديلاً عن المقال.
-- استخدم رابط المقال المحدد الذي ورد في نتيجة البحث فقط.
-- لا تدّعِ أنك فتحت المقال أو تحققت من محتواه إذا لم يحدث ذلك.
-- إذا لم يتوفر رابط مقال محدد، فلا تعرض الخبر باعتباره موثقاً.
+- لا تعرض وقتاً دقيقاً إذا لم يكن موجوداً في المصدر الأصلي.
+- لا تستنتج وقت النشر من تاريخ اليوم.
+- لا تعرض روابط عامة أو صفحات أقسام بدلاً من رابط المقال.
+- لا تدّعِ قراءة محتوى المقال إذا لم تتم قراءته.
 - لا تكرر الخبر نفسه بصيغ مختلفة.
-- لا تكمل العدد المطلوب بأخبار قديمة أو غير مرتبطة.
-- إذا كانت النتائج غير كافية، وضّح ذلك بصدق.
+- لا تكمل العدد بأخبار قديمة أو غير مرتبطة.
+- استخدم عبارة: "الأخبار التي عثر عليها البحث".
+- لا تستخدم عبارة: "جميع الأخبار المتاحة".
+- إذا لم توجد نتائج مستوفية، قل ذلك بوضوح.
+- لا تستنتج من غياب النتائج عدم وجود أخبار في الواقع.
 ` : "";
 
   return `
@@ -499,13 +500,19 @@ function parsePublishedDate(value) {
 }
 
 /* =====================================================
-   التحقق من الرابط المباشر للمقال
+   التحقق من الرابط
 ===================================================== */
 
 function isValidHttpsUrl(value) {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && Boolean(url.hostname);
+
+    return (
+      url.protocol === "https:" &&
+      Boolean(url.hostname) &&
+      !url.username &&
+      !url.password
+    );
   } catch {
     return false;
   }
@@ -515,7 +522,7 @@ function isDirectArticleUrl(value) {
   try {
     const url = new URL(value);
 
-    if (url.protocol !== "https:" || !url.hostname) {
+    if (!isValidHttpsUrl(value)) {
       return false;
     }
 
@@ -529,34 +536,13 @@ function isDirectArticleUrl(value) {
     }
 
     const genericPages = new Set([
-      "news",
-      "world",
-      "business",
-      "economy",
-      "markets",
-      "market",
-      "politics",
-      "technology",
-      "tech",
-      "sports",
-      "middle-east",
-      "turkey",
-      "turkiye",
-      "latest",
-      "latest-news",
-      "articles",
-      "category",
-      "categories",
-      "section",
-      "sections",
-      "topics",
-      "tag",
-      "tags",
-      "search",
-      "index",
-      "home",
-      "about",
-      "contact"
+      "news", "world", "business", "economy",
+      "markets", "market", "politics", "technology",
+      "tech", "sports", "middle-east", "turkey",
+      "turkiye", "latest", "latest-news", "articles",
+      "category", "categories", "section", "sections",
+      "topics", "tag", "tags", "search", "index",
+      "home", "about", "contact"
     ]);
 
     const lastPart = pathParts[pathParts.length - 1];
@@ -570,62 +556,483 @@ function isDirectArticleUrl(value) {
     }
 
     return true;
-
   } catch {
     return false;
   }
 }
 
 /* =====================================================
-   فلترة الأخبار خلال آخر 24 ساعة
+   قراءة HTML محدود الحجم
 ===================================================== */
 
-function filterRecentNews(results, checkedAt = Date.now()) {
+async function readLimitedText(response, maxBytes) {
+  if (!response.body) {
+    return "";
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+
+  try {
+    while (total < maxBytes) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      const remaining = maxBytes - total;
+      const chunk = value.subarray(0, remaining);
+
+      chunks.push(chunk);
+      total += chunk.length;
+
+      if (chunk.length < value.length) {
+        break;
+      }
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // تجاهل أخطاء إغلاق التدفق
+    }
+  }
+
+  const merged = new Uint8Array(total);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return new TextDecoder("utf-8").decode(merged);
+}
+
+/* =====================================================
+   حماية أساسية عند جلب المقالات الخارجية
+===================================================== */
+
+function isSafeExternalHost(hostname) {
+  const host = String(hostname || "").toLowerCase();
+
+  if (
+    !host ||
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal")
+  ) {
+    return false;
+  }
+
+  if (
+    host.startsWith("127.") ||
+    host.startsWith("10.") ||
+    host.startsWith("192.168.") ||
+    host === "0.0.0.0" ||
+    host === "::1"
+  ) {
+    return false;
+  }
+
+  const private172 = host.match(/^172\.(\d+)\./);
+
+  if (
+    private172 &&
+    Number(private172[1]) >= 16 &&
+    Number(private172[1]) <= 31
+  ) {
+    return false;
+  }
+
+  if (host.startsWith("[") || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+    return false;
+  }
+
+  return true;
+}
+
+/* =====================================================
+   استخراج تاريخ النشر من HTML
+===================================================== */
+
+function decodeHtmlEntities(value) {
+  return String(value || "")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&#x27;/gi, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
+function extractMetaContent(html, names) {
+  const tags = html.match(/<meta\b[^>]*>/gi) || [];
+
+  for (const tag of tags) {
+    const attrMatch = tag.match(
+      /\b(?:name|property|itemprop)\s*=\s*["']([^"']+)["']/i
+    );
+
+    const contentMatch = tag.match(
+      /\bcontent\s*=\s*["']([^"']+)["']/i
+    );
+
+    if (!attrMatch || !contentMatch) {
+      continue;
+    }
+
+    const key = attrMatch[1].toLowerCase();
+
+    if (names.includes(key)) {
+      return decodeHtmlEntities(contentMatch[1]).trim();
+    }
+  }
+
+  return null;
+}
+
+function findDatePublishedInJson(value, depth = 0) {
+  if (depth > 10 || value == null) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findDatePublishedInJson(item, depth + 1);
+
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
+  if (typeof value !== "object") {
+    return null;
+  }
+
+  const type = value["@type"];
+  const types = Array.isArray(type) ? type : [type];
+
+  const isArticle = types.some(item =>
+    typeof item === "string" &&
+    /article|newsarticle|blogposting|report/i.test(item)
+  );
+
+  if (isArticle && typeof value.datePublished === "string") {
+    return value.datePublished;
+  }
+
+  if (
+    typeof value.datePublished === "string" &&
+    !value.dateModified
+  ) {
+    return value.datePublished;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "dateModified" || key === "dateUpdated") {
+      continue;
+    }
+
+    const found = findDatePublishedInJson(child, depth + 1);
+
+    if (found) {
+      return found;
+    }
+  }
+
+  return null;
+}
+
+function extractPublishedDateFromHtml(html) {
+  const scripts = html.match(
+    /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi
+  ) || [];
+
+  for (const script of scripts) {
+    const jsonText = script
+      .replace(/^<script\b[^>]*>/i, "")
+      .replace(/<\/script>$/i, "")
+      .trim();
+
+    try {
+      const data = JSON.parse(
+        decodeHtmlEntities(jsonText)
+      );
+
+      const date = findDatePublishedInJson(data);
+
+      if (date && parsePublishedDate(date) !== null) {
+        return {
+          value: date,
+          source: "json-ld"
+        };
+      }
+    } catch {
+      // قد تكون بيانات JSON-LD غير صالحة
+    }
+  }
+
+  const metaDate = extractMetaContent(html, [
+    "article:published_time",
+    "datepublished",
+    "parsely-pub-date",
+    "pubdate",
+    "publishdate",
+    "date"
+  ]);
+
+  if (metaDate && parsePublishedDate(metaDate) !== null) {
+    return {
+      value: metaDate,
+      source: "meta"
+    };
+  }
+
+  const timeTags = html.match(/<time\b[^>]*>/gi) || [];
+
+  for (const tag of timeTags) {
+    const dateMatch = tag.match(
+      /\bdatetime\s*=\s*["']([^"']+)["']/i
+    );
+
+    if (!dateMatch) {
+      continue;
+    }
+
+    const date = decodeHtmlEntities(dateMatch[1]).trim();
+
+    if (parsePublishedDate(date) !== null) {
+      return {
+        value: date,
+        source: "time-datetime"
+      };
+    }
+  }
+
+  return null;
+}
+
+/* =====================================================
+   جلب تاريخ النشر من صفحة المقال الأصلية
+===================================================== */
+
+async function fetchArticlePublishedDate(articleUrl) {
+  if (!isValidHttpsUrl(articleUrl)) {
+    return {
+      ok: false,
+      reason: "invalid_url"
+    };
+  }
+
+  let currentUrl = articleUrl;
+
+  for (
+    let redirectCount = 0;
+    redirectCount <= MAX_ARTICLE_REDIRECTS;
+    redirectCount++
+  ) {
+    const parsedUrl = new URL(currentUrl);
+
+    if (
+      parsedUrl.protocol !== "https:" ||
+      !isSafeExternalHost(parsedUrl.hostname)
+    ) {
+      return {
+        ok: false,
+        reason: "unsafe_host"
+      };
+    }
+
+    let response;
+
+    try {
+      response = await fetch(currentUrl, {
+        method: "GET",
+        redirect: "manual",
+        signal: AbortSignal.timeout(ARTICLE_TIMEOUT_MS),
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; AlThakaAlArabi/2.0)",
+          "Accept": "text/html,application/xhtml+xml"
+        }
+      });
+    } catch (error) {
+      return {
+        ok: false,
+        reason: "fetch_error",
+        error: error.message
+      };
+    }
+
+    if (
+      response.status >= 300 &&
+      response.status < 400
+    ) {
+      const location = response.headers.get("location");
+
+      if (!location || redirectCount === MAX_ARTICLE_REDIRECTS) {
+        return {
+          ok: false,
+          reason: "redirect_limit"
+        };
+      }
+
+      try {
+        currentUrl = new URL(location, currentUrl).toString();
+      } catch {
+        return {
+          ok: false,
+          reason: "invalid_redirect"
+        };
+      }
+
+      continue;
+    }
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        reason: `http_${response.status}`
+      };
+    }
+
+    const contentType = (
+      response.headers.get("content-type") || ""
+    ).toLowerCase();
+
+    if (
+      !contentType.includes("text/html") &&
+      !contentType.includes("application/xhtml+xml")
+    ) {
+      return {
+        ok: false,
+        reason: "not_html"
+      };
+    }
+
+    const html = await readLimitedText(
+      response,
+      MAX_ARTICLE_BYTES
+    );
+
+    const extracted = extractPublishedDateFromHtml(html);
+
+    if (!extracted) {
+      return {
+        ok: false,
+        reason: "publication_date_not_found"
+      };
+    }
+
+    const timestamp = parsePublishedDate(extracted.value);
+
+    if (timestamp === null) {
+      return {
+        ok: false,
+        reason: "publication_date_invalid"
+      };
+    }
+
+    return {
+      ok: true,
+      publishedDate: extracted.value,
+      publishedTimestamp: timestamp,
+      dateSource: extracted.source,
+      finalUrl: currentUrl
+    };
+  }
+
+  return {
+    ok: false,
+    reason: "redirect_limit"
+  };
+}
+
+/* =====================================================
+   تنفيذ المهام بعدد متزامن محدود
+===================================================== */
+
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function runWorker() {
+    while (true) {
+      const index = nextIndex++;
+
+      if (index >= items.length) {
+        return;
+      }
+
+      try {
+        results[index] = await worker(items[index], index);
+      } catch (error) {
+        results[index] = {
+          ok: false,
+          reason: "worker_error",
+          error: error.message
+        };
+      }
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    () => runWorker()
+  );
+
+  await Promise.all(workers);
+
+  return results;
+}
+
+/* =====================================================
+   فلترة الأخبار والتحقق من صفحة المقال
+===================================================== */
+
+async function filterRecentNews(results, checkedAt = Date.now()) {
   const stats = {
     received: results.length,
     accepted: 0,
-    missingDate: 0,
-    invalidDate: 0,
+    missingSearchDate: 0,
+    invalidSearchDate: 0,
     outside24Hours: 0,
     invalidUrl: 0,
-    genericUrl: 0
+    genericUrl: 0,
+    articleFetchFailed: 0,
+    articleDateMissing: 0,
+    articleDateInvalid: 0,
+    articleDateOutside24Hours: 0,
+    articleDateConflict: 0
   };
 
-  const invalidDateSamples = [];
-  const accepted = [];
+  const candidates = [];
 
   for (const item of results) {
     if (!item.publishedDate) {
-      stats.missingDate++;
-
-      if (invalidDateSamples.length < 5) {
-        invalidDateSamples.push({
-          title: String(item.title || "").slice(0, 120),
-          publishedDate: null
-        });
-      }
-
+      stats.missingSearchDate++;
       continue;
     }
 
-    const publishedAt = parsePublishedDate(item.publishedDate);
+    const searchTimestamp = parsePublishedDate(
+      item.publishedDate
+    );
 
-    if (publishedAt === null) {
-      stats.invalidDate++;
-
-      if (invalidDateSamples.length < 5) {
-        invalidDateSamples.push({
-          title: String(item.title || "").slice(0, 120),
-          publishedDate: String(item.publishedDate).slice(0, 120)
-        });
-      }
-
+    if (searchTimestamp === null) {
+      stats.invalidSearchDate++;
       continue;
     }
 
-    const age = checkedAt - publishedAt;
+    const searchAge = checkedAt - searchTimestamp;
 
-    if (age < 0 || age > NEWS_WINDOW_MS) {
+    if (searchAge < 0 || searchAge > NEWS_WINDOW_MS) {
       stats.outside24Hours++;
       continue;
     }
@@ -640,19 +1047,95 @@ function filterRecentNews(results, checkedAt = Date.now()) {
       continue;
     }
 
-    accepted.push(item);
+    candidates.push(item);
+  }
+
+  const verifiedResults = await mapWithConcurrency(
+    candidates,
+    NEWS_VERIFY_CONCURRENCY,
+    async item => {
+      const article = await fetchArticlePublishedDate(item.url);
+
+      if (!article.ok) {
+        return {
+          ok: false,
+          reason: article.reason
+        };
+      }
+
+      const articleAge =
+        checkedAt - article.publishedTimestamp;
+
+      if (
+        articleAge < 0 ||
+        articleAge > NEWS_WINDOW_MS
+      ) {
+        return {
+          ok: false,
+          reason: "article_date_outside_window"
+        };
+      }
+
+      const searchTimestamp = parsePublishedDate(
+        item.publishedDate
+      );
+
+      /*
+        إذا اختلف تاريخ Tavily عن تاريخ صفحة المقال
+        بأكثر من 24 ساعة، نستبعد النتيجة لاحتمال وجود
+        خطأ في التاريخ أو أن التاريخ المعروض ليس تاريخ النشر.
+      */
+
+      if (
+        Math.abs(
+          searchTimestamp - article.publishedTimestamp
+        ) > NEWS_WINDOW_MS
+      ) {
+        return {
+          ok: false,
+          reason: "article_date_conflict"
+        };
+      }
+
+      return {
+        ok: true,
+        item: {
+          ...item,
+          publishedDate: article.publishedDate,
+          verifiedPublishedDate: article.publishedDate,
+          verifiedPublishedTimestamp: article.publishedTimestamp,
+          publicationDateSource: article.dateSource,
+          articleUrl: article.finalUrl,
+          dateVerifiedFromOriginalPage: true
+        }
+      };
+    }
+  );
+
+  const accepted = [];
+
+  for (const result of verifiedResults) {
+    if (result.ok) {
+      accepted.push(result.item);
+      continue;
+    }
+
+    if (result.reason === "article_date_outside_window") {
+      stats.articleDateOutside24Hours++;
+    } else if (result.reason === "publication_date_not_found") {
+      stats.articleDateMissing++;
+    } else if (result.reason === "publication_date_invalid") {
+      stats.articleDateInvalid++;
+    } else if (result.reason === "article_date_conflict") {
+      stats.articleDateConflict++;
+    } else {
+      stats.articleFetchFailed++;
+    }
   }
 
   stats.accepted = accepted.length;
 
   console.log("[News filter]", JSON.stringify(stats));
-
-  if (invalidDateSamples.length > 0) {
-    console.log(
-      "[News filter] Invalid date examples:",
-      JSON.stringify(invalidDateSamples)
-    );
-  }
 
   return {
     results: accepted,
@@ -712,7 +1195,7 @@ async function collectSources(
   let newsStats = null;
 
   if (needs.news) {
-    const filtered = filterRecentNews(
+    const filtered = await filterRecentNews(
       tavily,
       checkedTimestamp
     );
@@ -817,17 +1300,11 @@ app.post("/api/chat", async (req, res) => {
       checkedTimestamp
     );
 
-    /*
-      حماية إضافية:
-      إذا كان السؤال عن الأخبار ولم توجد نتائج مقبولة،
-      لا نطلب من النموذج اختراع إجابة أو استخدام أخبار قديمة.
-    */
-
     if (needs.news && sources.tavily.length === 0) {
       const noNewsMessages = {
-        ar: "لم أتمكن من العثور على أخبار اجتازت شروط التحقق خلال آخر 24 ساعة. هذا لا يعني بالضرورة عدم وجود أخبار، بل يعني أن نتائج البحث المتاحة لم توفر مقالات بتاريخ نشر ورابط مباشر مستوفيين للشروط. لم أعرض أخباراً قديمة بديلاً عن ذلك.",
-        en: "I could not find news results that passed the verification requirements for the last 24 hours. This does not necessarily mean that no news exists; the available search results did not provide articles with qualifying publication dates and direct links. I have not substituted older news.",
-        tr: "Son 24 saat içinde doğrulama koşullarını karşılayan haber bulamadım. Bu, mutlaka hiç haber olmadığı anlamına gelmez; mevcut arama sonuçları uygun yayın tarihi ve doğrudan makale bağlantısı sağlamadı. Eski haberleri bunun yerine sunmadım."
+        ar: "لم أتمكن من العثور على أخبار اجتازت شروط التحقق خلال آخر 24 ساعة. حاولت التحقق من تاريخ النشر داخل صفحات المقالات الأصلية، لكن النتائج المتاحة لم توفر بيانات نشر دقيقة وموثوقة. هذا لا يعني بالضرورة عدم وجود أخبار، ولم أعرض أخباراً قديمة بديلاً عنها.",
+        en: "I could not find news that passed verification for the last 24 hours. I attempted to verify publication dates on the original article pages, but the available results did not provide reliable publication timestamps. This does not necessarily mean that no news exists. I have not substituted older news.",
+        tr: "Son 24 saat içinde doğrulamadan geçen haber bulamadım. Orijinal makale sayfalarındaki yayın tarihlerini kontrol etmeye çalıştım, ancak mevcut sonuçlar güvenilir yayın zamanları sağlamadı. Bu, mutlaka hiç haber olmadığı anlamına gelmez. Eski haberleri bunun yerine sunmadım."
       };
 
       return res.json({
