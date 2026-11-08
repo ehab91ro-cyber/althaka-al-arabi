@@ -1,1240 +1,241 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#101827">
-<title>الذكاء العربي الخارق</title>
-
-<script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
-
-<style>
-*{box-sizing:border-box}
-
-body{
-  margin:0;
-  font-family:Arial,sans-serif;
-  background:#101827;
-  color:white
-}
-
-header{
-  padding:22px;
-  text-align:center;
-  background:#17243a;
-  border-bottom:1px solid #34445e
-}
-
-header h1{
-  margin:0 0 8px;
-  color:#65d6c4
-}
-
-header p{
-  margin:0;
-  color:#c6d1df
-}
-
-main{
-  max-width:850px;
-  margin:25px auto;
-  padding:15px
-}
-
-.panel{
-  background:#1a2940;
-  border:1px solid #34445e;
-  border-radius:16px;
-  padding:18px
-}
-
-label{
-  display:block;
-  margin-bottom:8px;
-  color:#65d6c4
-}
-
-select{
-  width:100%;
-  padding:13px;
-  border-radius:10px;
-  border:1px solid #536780;
-  background:#101827;
-  color:white;
-  font-size:16px;
-  margin-bottom:12px
-}
-
-#chat{
-  height:480px;
-  overflow-y:auto;
-  padding:12px;
-  background:#101827;
-  border-radius:12px;
-  margin-bottom:15px
-}
-
-.message{
-  padding:13px;
-  margin:9px 0;
-  border-radius:12px;
-  line-height:1.9;
-  overflow-wrap:anywhere
-}
-
-.user{
-  background:#245b69;
-  white-space:pre-wrap
-}
-
-.bot{
-  background:#293b55;
-  min-width:0
-}
-
-.bot-row{
-  display:flex;
-  align-items:flex-start;
-  gap:10px;
-  margin:15px 0
-}
-
-.bot-avatar{
-  width:48px;
-  height:48px;
-  flex:0 0 48px;
-  object-fit:cover;
-  border-radius:14px;
-  border:2px solid #65d6c4
-}
-
-.bot-content{
-  flex:1;
-  min-width:0
-}
-
-.copy-bar{
-  display:flex;
-  justify-content:flex-end;
-  margin-bottom:5px
-}
-
-button{
-  border:0;
-  border-radius:10px;
-  padding:11px 15px;
-  background:#45c7b2;
-  color:#09202a;
-  font-size:16px;
-  font-weight:bold;
-  cursor:pointer
-}
-
-button:disabled{
-  opacity:.5;
-  cursor:not-allowed
-}
-
-.copy-btn{
-  background:#344b65;
-  color:white;
-  padding:7px 12px;
-  font-size:13px;
-  border:1px solid #536780
-}
-
-.message.bot h1,
-.message.bot h2,
-.message.bot h3{
-  color:#65d6c4
-}
-
-.message.bot pre{
-  background:#101827;
-  padding:12px;
-  border-radius:9px;
-  overflow-x:auto;
-  direction:ltr;
-  text-align:left
-}
-
-.message.bot code{
-  background:#101827;
-  padding:3px 5px;
-  border-radius:4px
-}
-
-.message.bot a{
-  color:#65d6c4;
-  overflow-wrap:anywhere
-}
-
-.sources{
-  margin-top:12px;
-  padding:10px;
-  background:#17243a;
-  border:1px solid #40536e;
-  border-radius:10px
-}
-
-.sources-title{
-  color:#65d6c4;
-  font-weight:bold;
-  margin-bottom:8px
-}
-
-.source-item{
-  padding:8px 0;
-  border-bottom:1px solid #34445e;
-  overflow-wrap:anywhere
-}
-
-.source-item:last-child{
-  border-bottom:0
-}
-
-.source-item a{
-  color:#65d6c4;
-  text-decoration:none
-}
-
-.source-item a:hover{
-  text-decoration:underline
-}
-
-.source-date{
-  display:block;
-  color:#aebdd0;
-  font-size:12px;
-  margin-top:4px
-}
-
-.transcription{
-  margin-top:10px;
-  padding:10px;
-  border-radius:9px;
-  background:#17243a;
-  color:#c6d1df;
-  font-size:13px;
-  white-space:pre-wrap
-}
-
-.composer{
-  background:#101827;
-  border:1px solid #536780;
-  border-radius:15px;
-  padding:10px
-}
-
-textarea{
-  width:100%;
-  min-height:75px;
-  max-height:180px;
-  resize:vertical;
-  background:transparent;
-  color:white;
-  border:0;
-  outline:0;
-  font-size:16px;
-  padding:8px
-}
-
-.toolbar{
-  display:flex;
-  align-items:center;
-  gap:9px
-}
-
-.tool{
-  width:43px;
-  height:43px;
-  padding:0;
-  border-radius:50%;
-  font-size:23px;
-  display:flex;
-  align-items:center;
-  justify-content:center
-}
-
-.send{
-  margin-inline-start:auto;
-  background:#65d6c4;
-  font-size:23px
-}
-
-.mic{
-  background:#344b65;
-  color:white
-}
-
-.mic.recording{
-  background:#d94b58;
-  color:white
-}
-
-#plusMenu{
-  display:none;
-  background:#293b55;
-  padding:9px;
-  border-radius:10px;
-  margin-bottom:10px;
-  gap:8px;
-  flex-wrap:wrap
-}
-
-#plusMenu.show{
-  display:flex
-}
-
-#plusMenu button{
-  background:#344b65;
-  color:white;
-  font-size:14px
-}
-
-#preview{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-  margin:8px 0
-}
-
-.preview-item{
-  position:relative;
-  background:#293b55;
-  border:1px solid #536780;
-  border-radius:9px;
-  padding:7px;
-  font-size:12px;
-  max-width:130px;
-  overflow-wrap:anywhere
-}
-
-.preview-item img{
-  width:75px;
-  height:65px;
-  object-fit:cover;
-  border-radius:6px;
-  display:block
-}
-
-.remove-file{
-  position:absolute;
-  top:2px;
-  inset-inline-end:2px;
-  width:22px;
-  height:22px;
-  padding:0;
-  border-radius:50%;
-  background:#d94b58;
-  color:white;
-  font-size:14px
-}
-
-.hidden{
-  display:none
-}
-
-#status{
-  font-size:13px;
-  color:#65d6c4;
-  padding:5px;
-  white-space:pre-wrap
-}
-
-#status.error{
-  color:#ff9a9a
-}
-
-footer{
-  text-align:center;
-  color:#9eacc0;
-  padding:25px;
-  font-size:13px
-}
-
-@media(max-width:600px){
-  header{padding:18px 10px}
-  main{margin:10px auto;padding:10px}
-  .panel{padding:12px}
-  #chat{height:430px}
-  .bot-avatar{width:40px;height:40px;flex-basis:40px}
-  .message{padding:10px;font-size:14px}
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الذكاء العربي الخارق 3.0</title>
+    <link href="https://cloudflare.com" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #0b0f19;
+            --bg-card: #151d30;
+            --accent: #00ffcc;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        header {
+            background-color: var(--bg-card);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #23314f;
+        }
+        h1 { margin: 0; font-size: 1.5rem; color: var(--accent); }
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message {
+            max-width: 80%;
+            padding: 12px 18px;
+            border-radius: 12px;
+            line-height: 1.6;
+            position: relative;
+            white-space: pre-wrap;
+        }
+        .user-message {
+            background-color: #1e293b;
+            align-self: flex-start;
+            border-right: 4px solid var(--accent);
+        }
+        .ai-message {
+            background-color: var(--bg-card);
+            align-self: flex-end;
+            border-left: 4px solid #3b82f6;
+            padding-left: 40px;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: color 0.2s;
+        }
+        .copy-btn:hover { color: var(--accent); }
+        .input-area {
+            background-color: var(--bg-card);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-top: 1px solid #23314f;
+        }
+        .input-row { display: flex; gap: 10px; align-items: center; }
+        textarea {
+            flex: 1;
+            background-color: #0b0f19;
+            border: 1px solid #23314f;
+            border-radius: 8px;
+            color: white;
+            padding: 10px;
+            resize: none;
+            height: 45px;
+        }
+        .btn {
+            background-color: #374151;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn:hover { background-color: #4b5563; }
+        .accent-btn { background-color: var(--accent); color: #0b0f19; }
+        .accent-btn:hover { background-color: #00cc99; }
+        .stats-bar { font-size: 0.85rem; color: var(--text-muted); display: flex; gap: 15px; }
+        .file-indicator { font-size: 0.8rem; color: var(--accent); display: none; margin-bottom: 5px; }
+    </style>
 </head>
-
 <body>
 
 <header>
-  <h1>الذكاء العربي الخارق</h1>
-  <p id="subtitle">مساعدك الذكي باللغة التي تحبها</p>
+    <h1><i class="fa-solid fa-brain"></i> الذكاء العربي الخارق 3.0</h1>
+    <div class="stats-bar">
+        <span id="speedTimer">سرعة الاستجابة: -- ثانية</span>
+    </div>
 </header>
 
-<main>
-<div class="panel">
-
-  <label id="languageLabel" for="language">اختر اللغة</label>
-
-  <select id="language">
-    <option value="ar">العربية</option>
-    <option value="en">English</option>
-    <option value="tr">Türkçe</option>
-  </select>
-
-  <div id="chat" aria-live="polite">
-    <div class="bot-row">
-      <img
-        class="bot-avatar"
-        src="./file_00000000eb688210be5b1ca9eaa5ef6d.png"
-        alt="صورة المساعد"
-      >
-      <div class="bot-content">
-        <div class="message bot" id="welcome">
-          أهلاً بك! أنا مساعد الذكاء العربي الخارق. كيف يمكنني مساعدتك اليوم؟
-        </div>
-      </div>
+<div class="chat-container" id="chatBox">
+    <div class="message ai-message">
+        <span>مرحباً بك! أنا الذكاء العربي الخارق، تم تصميمي وتطويري بالكامل بمساعدة العبقري إيهاب عادل شالاتي. كيف يمكنني مساعدتك اليوم بمعلومات حية وسريعة للغاية؟</span>
+        <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i></button>
     </div>
-  </div>
-
-  <div id="plusMenu">
-    <button type="button" id="pickImage">🖼️ الصور</button>
-    <button type="button" id="pickFile">📁 الملفات</button>
-    <button type="button" id="takePhoto">📷 الكاميرا</button>
-  </div>
-
-  <input
-    class="hidden"
-    id="imageInput"
-    type="file"
-    accept="image/jpeg,image/png,image/webp,image/gif"
-    multiple
-  >
-
-  <input
-    class="hidden"
-    id="fileInput"
-    type="file"
-    accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json"
-    multiple
-  >
-
-  <input
-    class="hidden"
-    id="cameraInput"
-    type="file"
-    accept="image/jpeg,image/png,image/webp"
-    capture="environment"
-  >
-
-  <div id="preview"></div>
-
-  <div class="composer">
-    <textarea
-      id="message"
-      placeholder="اكتب سؤالك هنا..."
-    ></textarea>
-
-    <div class="toolbar">
-      <button
-        class="tool"
-        type="button"
-        id="plus"
-        title="إضافة مرفق"
-      >＋</button>
-
-      <button
-        class="tool mic"
-        type="button"
-        id="mic"
-        title="تسجيل صوت"
-      >🎙</button>
-
-      <button
-        class="tool send"
-        type="button"
-        id="send"
-        title="إرسال"
-      >➤</button>
-    </div>
-
-    <div id="status"></div>
-  </div>
-
 </div>
-</main>
 
-<footer>© 2026 الذكاء العربي الخارق</footer>
+<div class="input-area">
+    <div id="fileIndicator" class="file-indicator"></div>
+    <div class="input-row">
+        <label class="btn"><i class="fa-solid fa-paperclip"></i> ملفات/صور <input type="file" id="fileInput" multiple style="display:none;" onchange="updateIndicator()"></label>
+        <label class="btn"><i class="fa-solid fa-video"></i> فيديو/صوت <input type="file" id="videoInput" accept="video/*,audio/*" style="display:none;" onchange="updateIndicator()"></label>
+        <textarea id="userInput" placeholder="اكتب سؤالك هنا لمعلومات حية دقيقة خلال 24 ساعة الماضية..."></textarea>
+        <button class="btn accent-btn" id="sendBtn" onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i> إرسال</button>
+    </div>
+</div>
 
 <script>
-'use strict';
+    let chatHistory = [];
 
-const translations = {
-  ar: {
-    subtitle:"مساعدك الذكي باللغة التي تحبها",
-    language:"اختر اللغة",
-    placeholder:"اكتب سؤالك هنا...",
-    thinking:"جاري التفكير...",
-    error:"الخادم غير متصل حالياً. حاول مرة أخرى.",
-    copy:"نسخ الإجابة",
-    copied:"تم النسخ!",
-    failed:"تعذر النسخ",
-    welcome:"أهلاً بك! أنا مساعد الذكاء العربي الخارق. كيف يمكنني مساعدتك اليوم؟",
-    images:"الصور",
-    files:"الملفات",
-    camera:"الكاميرا",
-    recording:"جارٍ التسجيل... اضغط لإيقاف التسجيل",
-    recorded:"تم تسجيل الصوت. يمكنك إرساله الآن.",
-    micError:"تعذر تشغيل الميكروفون. تحقق من إذن الوصول.",
-    empty:"اكتب رسالة أو أرفق ملفاً أو سجّل صوتاً.",
-    remove:"حذف",
-    sources:"المصادر والمراجع",
-    transcript:"النص المستخرج من التسجيل",
-    uploadError:"نوع الملف غير مدعوم. استخدم الصور أو TXT أو MD أو CSV أو JSON.",
-    maxFiles:"يمكنك إرفاق خمسة ملفات كحد أقصى.",
-    fileTooLarge:"حجم الملف أكبر من 20 ميغابايت.",
-    retry:"لم يتم الإرسال. احتفظت بالمرفقات لتتمكن من المحاولة مرة أخرى."
-  },
-
-  en: {
-    subtitle:"Your intelligent assistant in your preferred language",
-    language:"Choose language",
-    placeholder:"Type your question here...",
-    thinking:"Thinking...",
-    error:"The server is currently unavailable. Please try again.",
-    copy:"Copy answer",
-    copied:"Copied!",
-    failed:"Copy failed",
-    welcome:"Welcome! I am Super Arabic Intelligence. How can I help you today?",
-    images:"Images",
-    files:"Files",
-    camera:"Camera",
-    recording:"Recording... tap to stop",
-    recorded:"Audio recorded. You can send it now.",
-    micError:"Could not access the microphone. Check permissions.",
-    empty:"Write a message, attach a file, or record audio.",
-    remove:"Remove",
-    sources:"Sources and references",
-    transcript:"Audio transcription",
-    uploadError:"Unsupported file type. Use images, TXT, MD, CSV or JSON.",
-    maxFiles:"You can attach a maximum of five files.",
-    fileTooLarge:"The file is larger than 20 MB.",
-    retry:"Sending failed. Your attachments have been kept for another attempt."
-  },
-
-  tr: {
-    subtitle:"Tercih ettiğiniz dilde akıllı asistanınız",
-    language:"Dil seçin",
-    placeholder:"Sorunuzu buraya yazın...",
-    thinking:"Düşünüyor...",
-    error:"Sunucu şu anda bağlı değil. Tekrar deneyin.",
-    copy:"Yanıtı kopyala",
-    copied:"Kopyalandı!",
-    failed:"Kopyalama başarısız",
-    welcome:"Hoş geldiniz! Ben Süper Arap Yapay Zekâ Asistanıyım. Size nasıl yardımcı olabilirim?",
-    images:"Resimler",
-    files:"Dosyalar",
-    camera:"Kamera",
-    recording:"Kaydediliyor... durdurmak için dokunun",
-    recorded:"Ses kaydedildi. Şimdi gönderebilirsiniz.",
-    micError:"Mikrofona erişilemiyor. İzinleri kontrol edin.",
-    empty:"Bir mesaj yazın, dosya ekleyin veya ses kaydedin.",
-    remove:"Sil",
-    sources:"Kaynaklar ve referanslar",
-    transcript:"Ses dökümü",
-    uploadError:"Desteklenmeyen dosya türü. Görsel, TXT, MD, CSV veya JSON kullanın.",
-    maxFiles:"En fazla beş dosya ekleyebilirsiniz.",
-    fileTooLarge:"Dosya boyutu 20 MB'tan büyük.",
-    retry:"Gönderilemedi. Ekleriniz yeniden denemeniz için korundu."
-  }
-};
-
-const input = document.getElementById("message");
-const chat = document.getElementById("chat");
-const sendButton = document.getElementById("send");
-const languageSelect = document.getElementById("language");
-const plusMenu = document.getElementById("plusMenu");
-const preview = document.getElementById("preview");
-const statusBox = document.getElementById("status");
-const micButton = document.getElementById("mic");
-
-let attachments = [];
-let audioBlob = null;
-let audioFilename = "recording.webm";
-let recorder = null;
-let audioChunks = [];
-let conversationHistory = [];
-let sending = false;
-
-const MAX_ATTACHMENTS = 5;
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
-const MAX_HISTORY = 10;
-
-function t() {
-  return translations[languageSelect.value] || translations.ar;
-}
-
-function setStatus(message, isError = false) {
-  statusBox.textContent = message || "";
-  statusBox.classList.toggle("error", Boolean(isError));
-}
-
-function updateLanguage() {
-  const lang = languageSelect.value;
-
-  document.documentElement.lang = lang;
-  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
-
-  document.getElementById("subtitle").textContent = t().subtitle;
-  document.getElementById("languageLabel").textContent = t().language;
-
-  input.placeholder = t().placeholder;
-
-  document.getElementById("pickImage").textContent =
-    "🖼️ " + t().images;
-
-  document.getElementById("pickFile").textContent =
-    "📁 " + t().files;
-
-  document.getElementById("takePhoto").textContent =
-    "📷 " + t().camera;
-
-  const welcome = document.getElementById("welcome");
-
-  if (welcome) {
-    welcome.textContent = t().welcome;
-  }
-}
-
-languageSelect.addEventListener("change", updateLanguage);
-
-function renderMarkdown(text) {
-  if (!window.marked || !window.DOMPurify) {
-    const span = document.createElement("span");
-    span.textContent = text;
-    return span;
-  }
-
-  const html = marked.parse(text, {
-    breaks: true,
-    gfm: true
-  });
-
-  const clean = DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true }
-  });
-
-  const template = document.createElement("template");
-  template.innerHTML = clean;
-
-  template.content.querySelectorAll("a").forEach(a => {
-    const href = a.getAttribute("href") || "";
-
-    try {
-      const url = new URL(href, window.location.origin);
-
-      if (url.protocol !== "https:" && url.protocol !== "http:") {
-        a.removeAttribute("href");
-      } else {
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-      }
-    } catch {
-      a.removeAttribute("href");
-    }
-  });
-
-  return template.content;
-}
-
-async function copyText(text, btn) {
-  try {
-    await navigator.clipboard.writeText(text);
-    btn.textContent = "✓ " + t().copied;
-  } catch (error) {
-    btn.textContent = t().failed;
-  }
-
-  setTimeout(() => {
-    btn.textContent = "▢ " + t().copy;
-  }, 2000);
-}
-
-function addBotMessage(text) {
-  const row = document.createElement("div");
-  row.className = "bot-row";
-
-  const avatar = document.createElement("img");
-  avatar.className = "bot-avatar";
-  avatar.src = "./file_00000000eb688210be5b1ca9eaa5ef6d.png";
-  avatar.alt = "صورة المساعد";
-
-  const content = document.createElement("div");
-  content.className = "bot-content";
-
-  const bar = document.createElement("div");
-  bar.className = "copy-bar";
-
-  const copy = document.createElement("button");
-  copy.className = "copy-btn";
-  copy.textContent = "▢ " + t().copy;
-  copy.onclick = () => copyText(text, copy);
-
-  const answer = document.createElement("div");
-  answer.className = "message bot";
-  answer.appendChild(renderMarkdown(text));
-
-  bar.appendChild(copy);
-  content.append(bar, answer);
-  row.append(avatar, content);
-
-  chat.appendChild(row);
-
-  return {
-    row,
-    content,
-    answer,
-    copy
-  };
-}
-
-function addUserMessage(text) {
-  const div = document.createElement("div");
-  div.className = "message user";
-  div.textContent = text || "📎";
-  chat.appendChild(div);
-}
-
-function isSupportedFile(file) {
-  const name = (file.name || "").toLowerCase();
-  const mime = (file.type || "").toLowerCase();
-
-  if (mime.startsWith("image/")) {
-    return [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "image/gif"
-    ].includes(mime);
-  }
-
-  return (
-    name.endsWith(".txt") ||
-    name.endsWith(".md") ||
-    name.endsWith(".csv") ||
-    name.endsWith(".json")
-  );
-}
-
-function addFiles(fileList) {
-  const incoming = Array.from(fileList || []);
-
-  for (const file of incoming) {
-    if (!isSupportedFile(file)) {
-      setStatus(t().uploadError, true);
-      continue;
+    function updateIndicator() {
+        const fileInput = document.getElementById('fileInput');
+        const videoInput = document.getElementById('videoInput');
+        const indicator = document.getElementById('fileIndicator');
+        let text = [];
+        if(fileInput.files.length) text.push('📂 ' + fileInput.files.length + ' ملفات جاهزة');
+        if(videoInput.files.length) text.push('🎬 ملف وسائط جاهز');
+        
+        if(text.length) {
+            indicator.innerText = text.join(' | ');
+            indicator.style.display = 'block';
+        } else {
+            indicator.style.display = 'none';
+        }
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      setStatus(t().fileTooLarge, true);
-      continue;
+    async function sendMessage() {
+        const text = document.getElementById('userInput').value.trim();
+        const fileInput = document.getElementById('fileInput');
+        const videoInput = document.getElementById('videoInput');
+        
+        if(!text && !fileInput.files.length && !videoInput.files.length) return;
+
+        appendMessage(text || "[تحميل وتحليل الوسائط المرفقة...]", 'user-message');
+        document.getElementById('userInput').value = '';
+
+        const formData = new FormData();
+        if(text) formData.append('message', text);
+        formData.append('history', JSON.stringify(chatHistory));
+
+        if(fileInput.files.length) {
+            for(let i=0; i<fileInput.files.length; i++) formData.append('files', fileInput.files[i]);
+        }
+        if(videoInput.files.length) {
+            const file = videoInput.files[0];
+            if (file.type.startsWith('video/')) {
+                formData.append('video', file);
+            } else {
+                formData.append('audio', file);
+            }
+        }
+
+        const startTime = performance.now();
+        document.getElementById('speedTimer').innerText = "جاري الاستدعاء والبحث الخارق...";
+
+        try {
+            const response = await fetch('/api/chat', { method: 'POST', body: formData });
+            const data = await response.json();
+            
+            const endTime = performance.now();
+            const inferenceTime = ((endTime - startTime) / 1000).toFixed(2);
+            document.getElementById('speedTimer').innerText = 'سرعة الاستجابة: ' + inferenceTime + ' ثانية';
+
+            if(data.answer) {
+                appendMessage(data.answer, 'ai-message');
+                chatHistory.push({ role: 'user', content: text || "[وسائط]" });
+                chatHistory.push({ role: 'assistant', content: data.answer });
+            } else if(data.error) {
+                appendMessage("خطأ من الخادم: " + data.error, 'ai-message');
+            } else {
+                appendMessage("خطأ: تعذر الحصول على رد مناسب.", 'ai-message');
+            }
+        } catch (err) {
+            appendMessage("حدث خطأ أثناء الاتصال بالخادم الفوري.", 'ai-message');
+        }
+
+        fileInput.value = '';
+        videoInput.value = '';
+        updateIndicator();
     }
 
-    if (attachments.length >= MAX_ATTACHMENTS) {
-      setStatus(t().maxFiles, true);
-      break;
+    function appendMessage(text, className) {
+        const chatBox = document.getElementById('chatBox');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message ' + className;
+        
+        const textSpan = document.createElement('span');
+        textSpan.innerText = text;
+        msgDiv.appendChild(textSpan);
+
+        if(className === 'ai-message') {
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-btn';
+            copyBtn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+            copyBtn.onclick = function() { copyText(this); };
+            msgDiv.appendChild(copyBtn);
+        }
+
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    attachments.push(file);
-  }
-
-  renderPreview();
-}
-
-function renderPreview() {
-  preview.replaceChildren();
-
-  attachments.forEach((file, index) => {
-    const item = document.createElement("div");
-    item.className = "preview-item";
-
-    if (file.type.startsWith("image/")) {
-      const img = document.createElement("img");
-      const objectUrl = URL.createObjectURL(file);
-
-      img.src = objectUrl;
-      img.onload = () => URL.revokeObjectURL(objectUrl);
-      img.onerror = () => URL.revokeObjectURL(objectUrl);
-
-      item.appendChild(img);
+    function copyText(button) {
+        const text = button.parentElement.querySelector('span').innerText.trim();
+        navigator.clipboard.writeText(text).then(() => {
+            button.innerHTML = '<i class="fa-solid fa-check" style="color: #00ffcc;"></i>';
+            setTimeout(() => { button.innerHTML = '<i class="fa-regular fa-copy"></i>'; }, 2000);
+        });
     }
-
-    const name = document.createElement("span");
-    name.textContent = file.name;
-
-    const remove = document.createElement("button");
-    remove.className = "remove-file";
-    remove.type = "button";
-    remove.textContent = "×";
-    remove.title = t().remove;
-
-    remove.onclick = () => {
-      attachments.splice(index, 1);
-      renderPreview();
-    };
-
-    item.append(name, remove);
-    preview.appendChild(item);
-  });
-
-  if (audioBlob) {
-    const item = document.createElement("div");
-    item.className = "preview-item";
-
-    item.textContent = "🎙 " + (
-      languageSelect.value === "en"
-        ? "Audio recording"
-        : languageSelect.value === "tr"
-          ? "Ses kaydı"
-          : "تسجيل صوتي"
-    );
-
-    const remove = document.createElement("button");
-    remove.className = "remove-file";
-    remove.type = "button";
-    remove.textContent = "×";
-    remove.title = t().remove;
-
-    remove.onclick = () => {
-      audioBlob = null;
-      audioFilename = "recording.webm";
-      renderPreview();
-      setStatus("");
-    };
-
-    item.appendChild(remove);
-    preview.appendChild(item);
-  }
-}
-
-document.getElementById("plus").onclick = () => {
-  plusMenu.classList.toggle("show");
-};
-
-document.getElementById("pickImage").onclick = () => {
-  document.getElementById("imageInput").click();
-};
-
-document.getElementById("pickFile").onclick = () => {
-  document.getElementById("fileInput").click();
-};
-
-document.getElementById("takePhoto").onclick = () => {
-  document.getElementById("cameraInput").click();
-};
-
-document.getElementById("imageInput").onchange = event => {
-  addFiles(event.target.files);
-  event.target.value = "";
-};
-
-document.getElementById("fileInput").onchange = event => {
-  addFiles(event.target.files);
-  event.target.value = "";
-};
-
-document.getElementById("cameraInput").onchange = event => {
-  addFiles(event.target.files);
-  event.target.value = "";
-};
-
-function chooseAudioExtension(mime) {
-  const value = String(mime || "").toLowerCase();
-
-  if (value.includes("ogg")) return "ogg";
-  if (value.includes("mp4")) return "m4a";
-  if (value.includes("mpeg")) return "mp3";
-  if (value.includes("wav")) return "wav";
-
-  return "webm";
-}
-
-micButton.onclick = async () => {
-  if (recorder && recorder.state === "recording") {
-    recorder.stop();
-    return;
-  }
-
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    setStatus(t().micError, true);
-    return;
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true
-    });
-
-    audioChunks = [];
-
-    const preferredTypes = [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/ogg;codecs=opus",
-      "audio/ogg"
-    ];
-
-    let mimeType = "";
-
-    if (window.MediaRecorder && MediaRecorder.isTypeSupported) {
-      mimeType = preferredTypes.find(type =>
-        MediaRecorder.isTypeSupported(type)
-      ) || "";
-    }
-
-    recorder = mimeType
-      ? new MediaRecorder(stream, { mimeType })
-      : new MediaRecorder(stream);
-
-    recorder.ondataavailable = event => {
-      if (event.data && event.data.size) {
-        audioChunks.push(event.data);
-      }
-    };
-
-    recorder.onerror = () => {
-      stream.getTracks().forEach(track => track.stop());
-      micButton.classList.remove("recording");
-      micButton.textContent = "🎙";
-      setStatus(t().micError, true);
-    };
-
-    recorder.onstop = () => {
-      const actualMime = recorder.mimeType || "audio/webm";
-
-      audioBlob = new Blob(audioChunks, {
-        type: actualMime
-      });
-
-      audioFilename = "recording." + chooseAudioExtension(actualMime);
-
-      stream.getTracks().forEach(track => track.stop());
-
-      micButton.classList.remove("recording");
-      micButton.textContent = "🎙";
-
-      setStatus(t().recorded);
-      renderPreview();
-    };
-
-    recorder.start();
-
-    micButton.classList.add("recording");
-    micButton.textContent = "■";
-    setStatus(t().recording);
-
-  } catch (error) {
-    console.error("Microphone error:", error);
-    setStatus(t().micError, true);
-  }
-};
-
-function getConversationHistory() {
-  return conversationHistory.slice(-MAX_HISTORY);
-}
-
-function buildUserHistoryText(message, files, hasAudio) {
-  const parts = [];
-
-  if (message) {
-    parts.push(message);
-  }
-
-  if (files.length) {
-    parts.push(
-      "المرفقات: " + files.map(file => file.name).join("، ")
-    );
-  }
-
-  if (hasAudio) {
-    parts.push("أرسل المستخدم تسجيلاً صوتياً.");
-  }
-
-  return parts.join("\n");
-}
-
-function addSources(container, sources) {
-  if (!Array.isArray(sources) || !sources.length) return;
-
-  const box = document.createElement("div");
-  box.className = "sources";
-
-  const heading = document.createElement("div");
-  heading.className = "sources-title";
-  heading.textContent = t().sources;
-
-  box.appendChild(heading);
-
-  sources.slice(0, 12).forEach(source => {
-    if (!source || typeof source.url !== "string") return;
-
-    let url;
-
-    try {
-      url = new URL(source.url);
-    } catch {
-      return;
-    }
-
-    if (url.protocol !== "https:") return;
-
-    const item = document.createElement("div");
-    item.className = "source-item";
-
-    const link = document.createElement("a");
-    link.href = url.href;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = source.title || source.source || url.hostname;
-
-    item.appendChild(link);
-
-    if (source.source) {
-      const provider = document.createElement("div");
-      provider.textContent = source.source;
-      provider.style.color = "#aebdd0";
-      provider.style.fontSize = "12px";
-      item.appendChild(provider);
-    }
-
-    if (source.publishedAt) {
-      const date = document.createElement("span");
-      date.className = "source-date";
-
-      const parsedDate = new Date(source.publishedAt);
-
-      date.textContent = Number.isNaN(parsedDate.getTime())
-        ? source.publishedAt
-        : parsedDate.toLocaleString(languageSelect.value);
-
-      item.appendChild(date);
-    }
-
-    box.appendChild(item);
-  });
-
-  if (box.querySelector(".source-item")) {
-    container.appendChild(box);
-  }
-}
-
-function addTranscription(container, transcript) {
-  if (!transcript) return;
-
-  const box = document.createElement("div");
-  box.className = "transcription";
-
-  const heading = document.createElement("strong");
-  heading.textContent = t().transcript;
-
-  const content = document.createElement("div");
-  content.textContent = transcript;
-
-  box.append(heading, content);
-  container.appendChild(box);
-}
-
-async function sendMessage() {
-  if (sending) return;
-
-  const message = input.value.trim();
-
-  if (!message && !attachments.length && !audioBlob) {
-    setStatus(t().empty, true);
-    return;
-  }
-
-  const filesToSend = [...attachments];
-  const audioToSend = audioBlob;
-  const audioNameToSend = audioFilename;
-  const languageToSend = languageSelect.value;
-  const historyToSend = getConversationHistory();
-
-  const hasAttachments =
-    filesToSend.length > 0 || Boolean(audioToSend);
-
-  const userDisplay = buildUserHistoryText(
-    message,
-    filesToSend,
-    Boolean(audioToSend)
-  );
-
-  addUserMessage(message || "📎");
-
-  if (filesToSend.length) {
-    addUserMessage(
-      "📎 " + filesToSend.map(file => file.name).join("، ")
-    );
-  }
-
-  if (audioToSend) {
-    addUserMessage("🎙");
-  }
-
-  input.value = "";
-  plusMenu.classList.remove("show");
-  setStatus("");
-
-  sending = true;
-  sendButton.disabled = true;
-  micButton.disabled = true;
-  input.disabled = true;
-
-  const bot = addBotMessage(t().thinking);
-  chat.scrollTop = chat.scrollHeight;
-
-  try {
-    let response;
-
-    if (hasAttachments) {
-      const form = new FormData();
-
-      form.append("message", message);
-      form.append("language", languageToSend);
-      form.append("history", JSON.stringify(historyToSend));
-
-      filesToSend.forEach(file => {
-        form.append("files", file, file.name);
-      });
-
-      if (audioToSend) {
-        form.append(
-          "audio",
-          audioToSend,
-          audioNameToSend
-        );
-      }
-
-      response = await fetch("/api/chat", {
-        method: "POST",
-        body: form
-      });
-
-    } else {
-      response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          message,
-          language: languageToSend,
-          history: historyToSend
-        })
-      });
-    }
-
-    let data;
-
-    try {
-      data = await response.json();
-    } catch (error) {
-      throw new Error(
-        "تعذر قراءة استجابة الخادم. تحقق من سجلات Render."
-      );
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ||
-        "حدث خطأ في الخادم. رمز الخطأ: " + response.status
-      );
-    }
-
-    const reply =
-      typeof data.answer === "string" && data.answer.trim()
-        ? data.answer.trim()
-        : typeof data.reply === "string" && data.reply.trim()
-          ? data.reply.trim()
-          : "لم تصل إجابة من الخادم.";
-
-    bot.answer.replaceChildren(renderMarkdown(reply));
-
-    bot.copy.onclick = () => copyText(reply, bot.copy);
-
-    addSources(bot.content, data.sources);
-    addTranscription(bot.content, data.transcription);
-
-    // نضيف الرسائل إلى سجل المحادثة بعد نجاح الطلب فقط.
-    if (userDisplay) {
-      conversationHistory.push({
-        role: "user",
-        content: userDisplay
-      });
-    }
-
-    conversationHistory.push({
-      role: "assistant",
-      content: reply
-    });
-
-    conversationHistory = conversationHistory.slice(-MAX_HISTORY);
-
-    // نحذف المرفقات فقط بعد نجاح الإرسال.
-    attachments = attachments.filter(file =>
-      !filesToSend.includes(file)
-    );
-
-    if (audioBlob === audioToSend) {
-      audioBlob = null;
-      audioFilename = "recording.webm";
-    }
-
-    renderPreview();
-
-    if (data.transcription) {
-      setStatus(t().recorded);
-    } else {
-      setStatus("");
-    }
-
-  } catch (error) {
-    console.error("Chat request failed:", error);
-
-    bot.answer.textContent =
-      error.message || t().error;
-
-    bot.copy.style.display = "none";
-
-    // لا نحذف الملفات أو التسجيل عند الفشل.
-    renderPreview();
-    setStatus(t().retry, true);
-
-  } finally {
-    sending = false;
-
-    sendButton.disabled = false;
-    micButton.disabled = false;
-    input.disabled = false;
-
-    input.focus();
-    chat.scrollTop = chat.scrollHeight;
-  }
-}
-
-sendButton.addEventListener("click", sendMessage);
-
-input.addEventListener("keydown", event => {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    sendMessage();
-  }
-});
-
-updateLanguage();
-renderPreview();
 </script>
-
 </body>
 </html>
