@@ -335,11 +335,40 @@ function detectSearchNeeds(message) {
     };
   }
 
-  const news = [
+  const explicitNews = [
     "اخبار", "خبر", "خبر عاجل", "اخبار عاجله",
     "news", "headline", "headlines",
     "son dakika", "haberler"
   ].some(term => text.includes(normalizeText(term)));
+
+  const recentAffairs = [
+    "احدث التطورات",
+    "اخر التطورات",
+    "التطورات الاخيره",
+    "المستجدات",
+    "احدث المستجدات",
+    "اخر المستجدات",
+    "التطورات الحاليه",
+    "التطورات اليوم",
+    "اخر ما حدث",
+    "ما يحدث حاليا",
+    "الاحداث الاخيره",
+    "الاحداث الحاليه",
+    "recent developments",
+    "latest developments",
+    "current developments",
+    "latest updates",
+    "recent updates",
+    "current affairs",
+    "latest events",
+    "recent events",
+    "son gelismeler",
+    "guncel gelismeler",
+    "son gelismeler neler",
+    "guncel olaylar"
+  ].some(term => text.includes(normalizeText(term)));
+
+  const news = explicitNews || recentAffairs;
 
   const current = [
     "اليوم", "الان", "حاليا", "احدث", "اخر",
@@ -528,9 +557,15 @@ function isDirectArticleUrl(value) {
     const pathParts = url.pathname
       .split("/")
       .filter(Boolean)
-      .map(part => decodeURIComponent(part).toLowerCase());
+      .map(part => {
+        try {
+          return decodeURIComponent(part).toLowerCase();
+        } catch {
+          return part.toLowerCase();
+        }
+      });
 
-    if (pathParts.length < 2) {
+    if (pathParts.length === 0) {
       return false;
     }
 
@@ -541,7 +576,7 @@ function isDirectArticleUrl(value) {
       "turkiye", "latest", "latest-news", "articles",
       "category", "categories", "section", "sections",
       "topics", "tag", "tags", "search", "index",
-      "home", "about", "contact"
+      "home", "about", "contact", "en", "ar", "tr"
     ]);
 
     const lastPart = pathParts[pathParts.length - 1];
@@ -551,6 +586,14 @@ function isDirectArticleUrl(value) {
     }
 
     if (url.pathname.endsWith("/")) {
+      return false;
+    }
+
+    if (
+      pathParts.length === 1 &&
+      lastPart.length < 8 &&
+      !/\d/.test(lastPart)
+    ) {
       return false;
     }
 
@@ -784,8 +827,7 @@ function extractPublishedDateFromHtml(html) {
     "datepublished",
     "parsely-pub-date",
     "pubdate",
-    "publishdate",
-    "date"
+    "publishdate"
   ]);
 
   if (metaDate && parsePublishedDate(metaDate) !== null) {
@@ -1079,12 +1121,6 @@ async function filterRecentNews(results, checkedAt = Date.now()) {
         item.publishedDate
       );
 
-      /*
-        إذا اختلف تاريخ Tavily عن تاريخ صفحة المقال
-        بأكثر من 24 ساعة، نستبعد النتيجة لاحتمال وجود
-        خطأ في التاريخ أو أن التاريخ المعروض ليس تاريخ النشر.
-      */
-
       if (
         Math.abs(
           searchTimestamp - article.publishedTimestamp
@@ -1100,6 +1136,7 @@ async function filterRecentNews(results, checkedAt = Date.now()) {
         ok: true,
         item: {
           ...item,
+          url: article.finalUrl,
           publishedDate: article.publishedDate,
           verifiedPublishedDate: article.publishedDate,
           verifiedPublishedTimestamp: article.publishedTimestamp,
@@ -1230,7 +1267,7 @@ function compactSourceList(items, limit, textLimit) {
       source: item.source || "",
       title: String(item.title || "").slice(0, 240),
       text: String(item.text || "").slice(0, textLimit),
-      url: String(item.url || "").slice(0, 700)
+      url: String(item.articleUrl || item.url || "").slice(0, 700)
     };
 
     if (item.publishedDate) {
