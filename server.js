@@ -15,10 +15,12 @@ app.use(express.json({ limit: '10mb' }));
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
+// التأكد من وجود مجلد الواجهة الأمامية تلقائياً
 if (!fs.existsSync(PUBLIC_DIR)) {
   fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 }
 
+// إنشاء ملف الواجهة الأمامية HTML تلقائياً
 const HTML_CONTENT = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -140,7 +142,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
 
 <div class="chat-container" id="chatBox">
     <div class="message ai-message">
-        <span>مرحباً بك! أنا الذكاء العربي الخارق، تم تصميمي وتطويري بالكامل بمساعدة العبقري إيهاب عادل شالاتي. كيف يمكنني مساعدتك اليوم بمعلومات حية وسريعة للغاية؟</span>
+        <span>مرحباً بك في منصة الذكاء العربي الخارق 3.0، الموسوعة العلمية واللغوية الشاملة التي تمت برمجتها وتطويرها بالكامل من قبل المطور إيهاب شالاتي. كيف يمكنني مساعدتك اليوم؟</span>
         <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i></button>
     </div>
 </div>
@@ -150,19 +152,19 @@ const HTML_CONTENT = `<!DOCTYPE html>
     <div class="input-row">
         <label class="btn"><i class="fa-solid fa-paperclip"></i> ملفات/صور <input type="file" id="fileInput" multiple style="display:none;" onchange="updateIndicator()"></label>
         <label class="btn"><i class="fa-solid fa-video"></i> فيديو/صوت <input type="file" id="videoInput" accept="video/*,audio/*" style="display:none;" onchange="updateIndicator()"></label>
-        <textarea id="userInput" placeholder="اكتب سؤالك هنا لمعلومات حية دقيقة خلال 24 ساعة الماضية..."></textarea>
+        <textarea id="userInput" placeholder="اسألني عن الدين، التاريخ، الفلك، البرمجة، الجغرافيا، الإنسان والحيوان..."></textarea>
         <button class="btn accent-btn" id="sendBtn" onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i> إرسال</button>
     </div>
 </div>
 
 <script>
-    let chatHistory = [];
+    let chatHistory =;
 
     function updateIndicator() {
         const fileInput = document.getElementById('fileInput');
         const videoInput = document.getElementById('videoInput');
         const indicator = document.getElementById('fileIndicator');
-        let text = [];
+        let text =;
         if(fileInput.files.length) text.push('📂 ' + fileInput.files.length + ' ملفات جاهزة');
         if(videoInput.files.length) text.push('🎬 ملف وسائط جاهز');
         
@@ -192,7 +194,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
             for(let i=0; i<fileInput.files.length; i++) formData.append('files', fileInput.files[i]);
         }
         if(videoInput.files.length) {
-            const file = videoInput.files[0];
+            const file = videoInput.files;
             if (file.type.startsWith('video/')) {
                 formData.append('video', file);
             } else {
@@ -265,7 +267,3 @@ fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), HTML_CONTENT, 'utf8');
 app.use(express.static(PUBLIC_DIR));
 
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
-const VISION_MODEL = process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
-const AUDIO_MODEL = process.env.GROQ_AUDIO_MODEL || 'whisper-large-v3-turbo';
-
-const REQUEST_TIMEOUT_MS = 15000;
