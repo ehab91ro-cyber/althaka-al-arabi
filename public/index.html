@@ -494,7 +494,9 @@ const translations = {
     uploadError:"نوع الملف غير مدعوم. استخدم الصور أو TXT أو MD أو CSV أو JSON.",
     maxFiles:"يمكنك إرفاق خمسة ملفات كحد أقصى.",
     fileTooLarge:"حجم الملف أكبر من 20 ميغابايت.",
-    retry:"لم يتم الإرسال. احتفظت بالمرفقات لتتمكن من المحاولة مرة أخرى."
+    retry:"لم يتم الإرسال. احتفظت بالمرفقات لتتمكن من المحاولة مرة أخرى.",
+    newsVerified:"المقالات الموثقة:",
+    newsCheckedAt:"وقت التحقق:"
   },
 
   en: {
@@ -520,7 +522,9 @@ const translations = {
     uploadError:"Unsupported file type. Use images, TXT, MD, CSV or JSON.",
     maxFiles:"You can attach a maximum of five files.",
     fileTooLarge:"The file is larger than 20 MB.",
-    retry:"Sending failed. Your attachments have been kept for another attempt."
+    retry:"Sending failed. Your attachments have been kept for another attempt.",
+    newsVerified:"Verified articles:",
+    newsCheckedAt:"Checked at:"
   },
 
   tr: {
@@ -546,7 +550,9 @@ const translations = {
     uploadError:"Desteklenmeyen dosya türü. Görsel, TXT, MD, CSV veya JSON kullanın.",
     maxFiles:"En fazla beş dosya ekleyebilirsiniz.",
     fileTooLarge:"Dosya boyutu 20 MB'tan büyük.",
-    retry:"Gönderilemedi. Ekleriniz yeniden denemeniz için korundu."
+    retry:"Gönderilemedi. Ekleriniz yeniden denemeniz için korundu.",
+    newsVerified:"Doğrulanan makaleler:",
+    newsCheckedAt:"Kontrol zamanı:"
   }
 };
 
@@ -1029,8 +1035,33 @@ function addSources(container, sources) {
   }
 }
 
+function addNewsVerification(container, verification) {
+  if (!verification || typeof verification !== 'object') return;
+
+  const count = verification.verifiedCount;
+  if (!Number.isInteger(count) || count < 0) return;
+
+  const box = document.createElement('div');
+  box.className = 'transcription';
+
+  const heading = document.createElement('strong');
+  heading.textContent = t().newsVerified + ' ' + count;
+  box.appendChild(heading);
+
+  if (typeof verification.checkedAt === 'string') {
+    const parsedDate = new Date(verification.checkedAt);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      const checked = document.createElement('div');
+      checked.textContent = t().newsCheckedAt + ' ' + parsedDate.toLocaleString(languageSelect.value);
+      box.appendChild(checked);
+    }
+  }
+
+  container.appendChild(box);
+}
+
 function addTranscription(container, transcript) {
-  if (!transcript) return;
+  if (typeof transcript !== 'string' || !transcript.trim()) return;
 
   const box = document.createElement("div");
   box.className = "transcription";
@@ -1145,6 +1176,17 @@ async function sendMessage() {
       );
     }
 
+    if (data.diagnostics && typeof data.diagnostics === 'object') {
+      const diagnostic = data.diagnostics;
+      console.info('Chat diagnostics', {
+        intent: typeof diagnostic.intent === 'string' ? diagnostic.intent : 'UNKNOWN',
+        latencyMs: Number.isFinite(diagnostic.latencyMs) ? diagnostic.latencyMs : null,
+        tavilyCalls: Number.isInteger(diagnostic.tavilyCalls) ? diagnostic.tavilyCalls : null,
+        sourcesCount: Number.isInteger(diagnostic.sourcesCount) ? diagnostic.sourcesCount : null,
+        status: typeof diagnostic.status === 'string' ? diagnostic.status : 'unknown'
+      });
+    }
+
     if (!response.ok) {
       throw new Error(
         data.error ||
@@ -1152,18 +1194,30 @@ async function sendMessage() {
       );
     }
 
-    const reply =
-      typeof data.answer === "string" && data.answer.trim()
-        ? data.answer.trim()
-        : typeof data.reply === "string" && data.reply.trim()
-          ? data.reply.trim()
-          : "لم تصل إجابة من الخادم.";
+    if (!['ar', 'en', 'tr'].includes(data.language)) {
+      throw new Error('استجابة الخادم لا تطابق عقد JSON: حقل language غير صالح.');
+    }
+    if (typeof data.answer !== 'string' || !data.answer.trim()) {
+      throw new Error('استجابة الخادم لا تطابق عقد JSON: حقل answer مفقود أو غير صالح.');
+    }
+    if (!Array.isArray(data.sources)) {
+      throw new Error('استجابة الخادم لا تطابق عقد JSON: حقل sources يجب أن يكون مصفوفة.');
+    }
+    if (!data.diagnostics || typeof data.diagnostics !== 'object' || Array.isArray(data.diagnostics)) {
+      throw new Error('استجابة الخادم لا تطابق عقد JSON: حقل diagnostics مفقود أو غير صالح.');
+    }
+
+    languageSelect.value = data.language;
+    updateLanguage();
+
+    const reply = data.answer.trim();
 
     bot.answer.replaceChildren(renderMarkdown(reply));
 
     bot.copy.onclick = () => copyText(reply, bot.copy);
 
     addSources(bot.content, data.sources);
+    addNewsVerification(bot.content, data.newsVerification);
     addTranscription(bot.content, data.transcription);
 
     // نضيف الرسائل إلى سجل المحادثة بعد نجاح الطلب فقط.

@@ -1,0 +1,78 @@
+name: Validate JSON response contract
+
+on:
+  push:
+    branches:
+      - feature/json-contract-diagnostics
+  pull_request:
+    branches:
+      - fix/news-relevance-filter
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Check server JavaScript syntax
+        run: node --check server.js
+
+      - name: Check inline frontend JavaScript syntax
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const html = fs.readFileSync('public/index.html', 'utf8');
+          const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
+            .map(match => match[1])
+            .filter(script => script.trim());
+          if (!scripts.length) throw new Error('No inline frontend script found');
+          fs.writeFileSync('/tmp/frontend-inline.js', scripts.join('\n;\n'));
+          NODE
+          node --check /tmp/frontend-inline.js
+
+      - name: Start server and verify JSON response contract
+        run: |
+          PORT=3123 node server.js > /tmp/assistant-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+          for attempt in $(seq 1 20); do
+            if curl --silent --fail http://127.0.0.1:3123/api/health > /tmp/health.json; then
+              break
+            fi
+            sleep 1
+          done
+
+          node -e "const h=require('/tmp/health.json'); if(h.ok!==true) process.exit(1);"
+
+          HTTP_CODE=$(curl --silent --output /tmp/chat.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:3123/api/chat \
+            -H 'Content-Type: application/json' \
+            -d '{}')
+
+          test "$HTTP_CODE" = "400"
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const response = JSON.parse(fs.readFileSync('/tmp/chat.json', 'utf8'));
+          const d = response.diagnostics;
+          if (!d || d.intent !== 'EMPTY_REQUEST' || d.status !== 'error') {
+            throw new Error('Missing or invalid diagnostics on validation error');
+          }
+          for (const key of ['latencyMs', 'tavilyCalls', 'sourcesCount']) {
+            if (!Number.isFinite(d[key]) || d[key] < 0) {
+              throw new Error('Invalid diagnostics field: ' + key);
+            }
+          }
+          console.log('JSON response contract smoke test passed');
+          NODE
