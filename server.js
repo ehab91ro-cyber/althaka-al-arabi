@@ -961,6 +961,11 @@ app.post('/api/chat', (req, res, next) => {
 
   next();
 }, async (req, res) => {
+  const requestStartedAt = Date.now();
+  let requestIntent = 'UNKNOWN';
+  let tavilyCalls = 0;
+  let sourcesCount = 0;
+
   try {
     const body = req.body || {};
     const message = normalizeText(body.message || body.prompt, 12000);
@@ -970,7 +975,14 @@ app.post('/api/chat', (req, res, next) => {
 
     if (!message && !uploadedFiles.length && !audioFile) {
       return res.status(400).json({
-        error: 'اكتب رسالتك أو أرفق ملفاً أو سجّل صوتاً.'
+        error: 'اكتب رسالتك أو أرفق ملفاً أو سجّل صوتاً.',
+        diagnostics: {
+          intent: 'EMPTY_REQUEST',
+          latencyMs: Date.now() - requestStartedAt,
+          tavilyCalls,
+          sourcesCount,
+          status: 'error'
+        }
       });
     }
 
@@ -999,6 +1011,18 @@ app.post('/api/chat', (req, res, next) => {
 
     const searchNeeded = detectSearchNeeds(message);
     const newsMode = searchNeeded && detectNewsIntent(message);
+    requestIntent = newsMode
+      ? 'NEWS_SEARCH'
+      : searchNeeded
+        ? 'WEB_SEARCH'
+        : images.length
+          ? 'IMAGE_ANALYSIS'
+          : audioFile
+            ? 'AUDIO_TRANSCRIPTION'
+            : 'CHAT';
+    if (searchNeeded && process.env.TAVILY_API_KEY) {
+      tavilyCalls = newsMode ? buildNewsSearchQueries(message, lang).length : 1;
+    }
 
     if (searchNeeded) {
       if (newsMode) {
@@ -1032,6 +1056,8 @@ app.post('/api/chat', (req, res, next) => {
           : `لم تتوفر مصادر قابلة للاستخدام لهذا الطلب. ${newsMode ? newsNotice : 'وضّح أن البحث لم ينجح ولا تختلق نتائج أو روابط.'}`
       });
     }
+
+    sourcesCount = sources.length;
 
     const userContent = createUserContent(
       message,
@@ -1067,7 +1093,14 @@ app.post('/api/chat', (req, res, next) => {
           verifiedCount: sources.length,
           checkedAt: new Date().toISOString()
         }
-      } : {})
+      } : {}),
+      diagnostics: {
+        intent: requestIntent,
+        latencyMs: Date.now() - requestStartedAt,
+        tavilyCalls,
+        sourcesCount,
+        status: 'success'
+      }
     });
   } catch (error) {
     console.error('Chat API error:', error);
@@ -1081,7 +1114,14 @@ app.post('/api/chat', (req, res, next) => {
       error: error.userMessage ||
         (status === 503
           ? 'إعدادات خدمة الذكاء الاصطناعي غير مكتملة.'
-          : error.message || 'حدث خطأ أثناء معالجة طلبك. حاول مرة أخرى.')
+          : error.message || 'حدث خطأ أثناء معالجة طلبك. حاول مرة أخرى.'),
+      diagnostics: {
+        intent: requestIntent,
+        latencyMs: Date.now() - requestStartedAt,
+        tavilyCalls,
+        sourcesCount,
+        status: 'error'
+      }
     });
   }
 });
