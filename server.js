@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-const MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+const MODEL = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
 const NEWS_WINDOW_MS = 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 20000;
 const ARTICLE_TIMEOUT_MS = 10000;
@@ -1446,7 +1446,10 @@ app.get("/api/health", (req, res) => {
     service: "الذكاء العربي الخارق",
     timestamp: new Date().toISOString(),
     searchConfigured: Boolean(process.env.TAVILY_API_KEY),
-    aiConfigured: Boolean(process.env.GROQ_API_KEY)
+    aiConfigured: Boolean(process.env.GROQ_API_KEY),
+    aiProvider: "Groq",
+    model: MODEL,
+    webSearchProvider: "Tavily"
   });
 });
 
