@@ -220,8 +220,8 @@ async function safeSearch(query, isNews = false) {
   }));
 }
 
-// يقبل تاريخاً ووقتاً واضحين مع منطقة زمنية صريحة.
-// لا يقبل التاريخ وحده لأنه لا يثبت ساعة النشر.
+// يقبل صيغاً مختلفة للتاريخ والوقت بشرط وجود منطقة زمنية واضحة.
+// لا يقبل التاريخ وحده أو وقتاً بلا منطقة زمنية.
 function parsePublishedDate(value) {
   if (!value || typeof value !== "string") {
     return null;
@@ -229,14 +229,22 @@ function parsePublishedDate(value) {
 
   const date = value.trim();
 
-  const hasExplicitTimezone =
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i.test(date);
+  const isoPattern =
+    /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i;
 
-  if (!hasExplicitTimezone) {
+  const rfcPattern =
+    /^(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+)?\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\s+\d{2}:\d{2}(?::\d{2})?\s+(?:GMT|UTC|[+-]\d{4})$/i;
+
+  if (!isoPattern.test(date) && !rfcPattern.test(date)) {
     return null;
   }
 
-  const timestamp = Date.parse(date);
+  const normalized = date.replace(
+    /^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/,
+    "$1T$2"
+  );
+
+  const timestamp = Date.parse(normalized);
 
   if (!Number.isFinite(timestamp)) {
     return null;
@@ -266,11 +274,20 @@ function filterRecentNews(results) {
     invalidUrl: 0
   };
 
+  const invalidDateSamples = [];
   const accepted = [];
 
   for (const item of results) {
     if (!item.publishedDate) {
       stats.missingDate++;
+
+      if (invalidDateSamples.length < 5) {
+        invalidDateSamples.push({
+          title: String(item.title || "").slice(0, 120),
+          publishedDate: null
+        });
+      }
+
       continue;
     }
 
@@ -278,6 +295,14 @@ function filterRecentNews(results) {
 
     if (publishedAt === null) {
       stats.invalidDate++;
+
+      if (invalidDateSamples.length < 5) {
+        invalidDateSamples.push({
+          title: String(item.title || "").slice(0, 120),
+          publishedDate: String(item.publishedDate).slice(0, 120)
+        });
+      }
+
       continue;
     }
 
@@ -299,6 +324,13 @@ function filterRecentNews(results) {
   stats.accepted = accepted.length;
 
   console.log("[News filter]", JSON.stringify(stats));
+
+  if (invalidDateSamples.length > 0) {
+    console.log(
+      "[News filter] Invalid date examples:",
+      JSON.stringify(invalidDateSamples)
+    );
+  }
 
   return {
     results: accepted,
