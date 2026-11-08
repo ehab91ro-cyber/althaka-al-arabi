@@ -4,266 +4,268 @@ const express = require('express');
 const OpenAI = require('openai');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const dns = require('dns').promises;
 const net = require('net');
 
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = Number(process.env.PORT || 3000);
+const PUBLIC_DIR = path.join(__dirname, 'public');
 
-// النماذج الفائقة لعام 2026 على محركات Groq اللحظية
-const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'; 
-const VISION_MODEL = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b'; 
-const AUDIO_MODEL = process.env.GROQ_AUDIO_MODEL || 'whisper-large-v3-turbo';
+// التأكد من وجود مجلد الواجهة الأمامية تلقائياً
+if (!fs.existsSync(PUBLIC_DIR)) {
+  fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+}
 
-const REQUEST_TIMEOUT_MS = 15000;
-const MAX_SEARCH_RESULTS = 10;
-const ALLOWED_LANGUAGES = new Set(['ar', 'en', 'tr']);
-const USER_AGENT = 'ArabicSuperIntelligence/3.0';
+// إنشاء ملف الواجهة الأمامية HTML تلقائياً
+const HTML_CONTENT = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الذكاء العربي الخارق 3.0</title>
+    <link href="https://cloudflare.com" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #0b0f19;
+            --bg-card: #151d30;
+            --accent: #00ffcc;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        header {
+            background-color: var(--bg-card);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #23314f;
+        }
+        h1 { margin: 0; font-size: 1.5rem; color: var(--accent); }
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message {
+            max-width: 80%;
+            padding: 12px 18px;
+            border-radius: 12px;
+            line-height: 1.6;
+            position: relative;
+            white-space: pre-wrap;
+        }
+        .user-message {
+            background-color: #1e293b;
+            align-self: flex-start;
+            border-right: 4px solid var(--accent);
+        }
+        .ai-message {
+            background-color: var(--bg-card);
+            align-self: flex-end;
+            border-left: 4px solid #3b82f6;
+            padding-left: 40px;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: color 0.2s;
+        }
+        .copy-btn:hover { color: var(--accent); }
+        .input-area {
+            background-color: var(--bg-card);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-top: 1px solid #23314f;
+        }
+        .input-row { display: flex; gap: 10px; align-items: center; }
+        textarea {
+            flex: 1;
+            background-color: #0b0f19;
+            border: 1px solid #23314f;
+            border-radius: 8px;
+            color: white;
+            padding: 10px;
+            resize: none;
+            height: 45px;
+        }
+        .btn {
+            background-color: #374151;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn:hover { background-color: #4b5563; }
+        .accent-btn { background-color: var(--accent); color: #0b0f19; }
+        .accent-btn:hover { background-color: #00cc99; }
+        .stats-bar { font-size: 0.85rem; color: var(--text-muted); display: flex; gap: 15px; }
+        .file-indicator { font-size: 0.8rem; color: var(--accent); display: none; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
 
-let groqClient = null;
+<header>
+    <h1><i class="fa-solid fa-brain"></i> الذكاء العربي الخارق 3.0</h1>
+    <div class="stats-bar">
+        <span id="speedTimer">سرعة الاستجابة: -- ثانية</span>
+    </div>
+</header>
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    files: 8,
-    fileSize: 45 * 1024 * 1024 
-  },
-  fileFilter: (_req, file, callback) => {
-    const mime = String(file.mimetype || '').toLowerCase();
+<div class="chat-container" id="chatBox">
+    <div class="message ai-message">
+        <span>مرحباً بك! أنا الذكاء العربي الخارق، تم تصميمي وتطويري بالكامل بمساعدة العبقري إيهاب عادل شالاتي. كيف يمكنني مساعدتك اليوم بمعلومات حية وسريعة للغاية؟</span>
+        <button class="copy-btn" onclick="copyText(this)"><i class="fa-regular fa-copy"></i></button>
+    </div>
+</div>
 
-    if (file.fieldname === 'audio' || file.fieldname === 'video') {
-      const allowedMedia = [
-        'audio/webm', 'audio/ogg', 'audio/wav', 'audio/mpeg', 'audio/mp4', 'audio/m4a',
-        'video/mp4', 'video/webm', 'video/quicktime'
-      ];
-      return callback(null, allowedMedia.includes(mime));
+<div class="input-area">
+    <div id="fileIndicator" class="file-indicator"></div>
+    <div class="input-row">
+        <label class="btn"><i class="fa-solid fa-paperclip"></i> ملفات/صور <input type="file" id="fileInput" multiple style="display:none;" onchange="updateIndicator()"></label>
+        <label class="btn"><i class="fa-solid fa-video"></i> فيديو/صوت <input type="file" id="videoInput" accept="video/*,audio/*" style="display:none;" onchange="updateIndicator()"></label>
+        <textarea id="userInput" placeholder="اكتب سؤالك هنا لمعلومات حية دقيقة خلال 24 ساعة الماضية..."></textarea>
+        <button class="btn accent-btn" id="sendBtn" onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i> إرسال</button>
+    </div>
+</div>
+
+<script>
+    let chatHistory = [];
+
+    function updateIndicator() {
+        const fileInput = document.getElementById('fileInput');
+        const videoInput = document.getElementById('videoInput');
+        const indicator = document.getElementById('fileIndicator');
+        let text = [];
+        if(fileInput.files.length) text.push('📂 ' + fileInput.files.length + ' ملفات جاهزة');
+        if(videoInput.files.length) text.push('🎬 ملف وسائط جاهز');
+        
+        if(text.length) {
+            indicator.innerText = text.join(' | ');
+            indicator.style.display = 'block';
+        } else {
+            indicator.style.display = 'none';
+        }
     }
 
-    if (file.fieldname === 'files') {
-      const allowedDocsAndImages = [
-        'image/jpeg', 'image/png', 'image/webp', 'image/gif',
-        'text/plain', 'text/markdown', 'text/csv', 'application/json'
-      ];
-      return callback(null, allowedDocsAndImages.includes(mime));
+    async function sendMessage() {
+        const text = document.getElementById('userInput').value.trim();
+        const fileInput = document.getElementById('fileInput');
+        const videoInput = document.getElementById('videoInput');
+        
+        if(!text && !fileInput.files.length && !videoInput.files.length) return;
+
+        appendMessage(text || "[تحميل وتحليل الوسائط المرفقة...]", 'user-message');
+        document.getElementById('userInput').value = '';
+
+        const formData = new FormData();
+        if(text) formData.append('message', text);
+        formData.append('history', JSON.stringify(chatHistory));
+
+        if(fileInput.files.length) {
+            for(let i=0; i<fileInput.files.length; i++) formData.append('files', fileInput.files[i]);
+        }
+        if(videoInput.files.length) {
+            const file = videoInput.files[0];
+            if (file.type.startsWith('video/')) {
+                formData.append('video', file);
+            } else {
+                formData.append('audio', file);
+            }
+        }
+
+        const startTime = performance.now();
+        document.getElementById('speedTimer').innerText = "جاري الاستدعاء والبحث الخارق...";
+
+        try {
+            const response = await fetch('/api/chat', { method: 'POST', body: formData });
+            const data = await response.json();
+            
+            const endTime = performance.now();
+            const inferenceTime = ((endTime - startTime) / 1000).toFixed(2);
+            document.getElementById('speedTimer').innerText = 'سرعة الاستجابة: ' + inferenceTime + ' ثانية';
+
+            if(data.answer) {
+                appendMessage(data.answer, 'ai-message');
+                chatHistory.push({ role: 'user', content: text || "[وسائط]" });
+                chatHistory.push({ role: 'assistant', content: data.answer });
+            } else if(data.error) {
+                appendMessage("خطأ من الخادم: " + data.error, 'ai-message');
+            } else {
+                appendMessage("خطأ: تعذر الحصول على رد مناسب.", 'ai-message');
+            }
+        } catch (err) {
+            appendMessage("حدث خطأ أثناء الاتصال بالخادم الفوري.", 'ai-message');
+        }
+
+        fileInput.value = '';
+        videoInput.value = '';
+        updateIndicator();
     }
 
-    callback(null, false);
-  }
-});
+    function appendMessage(text, className) {
+        const chatBox = document.getElementById('chatBox');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message ' + className;
+        
+        const textSpan = document.createElement('span');
+        textSpan.innerText = text;
+        msgDiv.appendChild(textSpan);
 
-function getGroqClient() {
-  if (!process.env.GROQ_API_KEY) {
-    const error = new Error('GROQ_API_KEY غير مضبوط في إعدادات البيئة.');
-    error.status = 503;
-    throw error;
-  }
-  if (!groqClient) {
-    groqClient = new OpenAI({
-      apiKey: process.env.GROQ_API_KEY,
-      baseURL: 'https://groq.com',
-      timeout: REQUEST_TIMEOUT_MS,
-      maxRetries: 1
-    });
-  }
-  return groqClient;
-}
+        if(className === 'ai-message') {
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-btn';
+            copyBtn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+            copyBtn.onclick = function() { copyText(this); };
+            msgDiv.appendChild(copyBtn);
+        }
 
-function normalizeText(value, max = 4000) {
-  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
-}
-
-function detectLanguage(text, requested) {
-  const selected = String(requested || '').toLowerCase();
-  if (ALLOWED_LANGUAGES.has(selected)) return selected;
-
-  const value = String(text || '');
-  if (/[ğüşöçıİĞÜŞÖÇ]/i.test(value)) return 'tr';
-
-  const arabic = (value.match(/[\u0600-\u06FF]/g) || []).length;
-  const latin = (value.match(/[A-Za-z]/g) || []).length;
-  if (arabic > latin) return 'ar';
-
-  return 'en';
-}
-
-function buildSystemPrompt(lang) {
-  const name = lang === 'tr' ? 'Turkish' : lang === 'en' ? 'English' : 'Arabic';
-  return `أنت «الذكاء العربي الخارق»، مساعد ذكي فائق السرعة، صممه العبقري إيهاب عادل شالاتي.
-أجب بلغة المستخدم (${name}) فوراً وبأعلى دقة ممكنة وبسرعة مطلقة.
-إذا سُئلت «من أنت؟» فقل بثقة: «أنا الذكاء العربي الخارق، تم تصميمي من قبل العبقري إيهاب عادل شالاتي».
-إذا لم تتوفر لديك معلومات موثقة بشأن الأحداث والأخبار خلال الـ 24 ساعة الماضية، صرّح بذلك بوضوح ولا تقم بتأليف أخبار أو تواريخ قديمة.`;
-}
-
-function detectSearchNeeds(message) {
-  return /(ابحث|بحث|آخر|أحدث|اليوم|الآن|حالياً|خبر|أخبار|سعر|تحديث|أمس|24 ساعة|latest|recent|today|now|news|search|current|bugün|son|haber|güncel)/i.test(String(message || ''));
-}
-
-async function searchTavily(query) {
-  if (!process.env.TAVILY_API_KEY) return [];
-  try {
-    const response = await fetch('https://tavily.com', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({
-        api_key: process.env.TAVILY_API_KEY,
-        query: normalizeText(query, 350),
-        topic: 'news',
-        search_depth: 'advanced',
-        max_results: MAX_SEARCH_RESULTS,
-        time_range: 'day'
-      })
-    });
-    if (!response.ok) return [];
-    const data = await response.json();
-    return (data?.results || []).map(item => ({
-      source: 'تصفح الويب الحي',
-      title: item.title,
-      text: item.content,
-      url: String(item.url || ''),
-      publishedDate: item.published_date || null
-    }));
-  } catch (error) {
-    console.warn('Tavily Live Search Error:', error.message);
-    return [];
-  }
-}
-
-function extractUploadedContent(files) {
-  const images = [];
-  const documents = [];
-  for (const file of files) {
-    const mime = String(file.mimetype || '').toLowerCase();
-    if (mime.startsWith('image/')) {
-      images.push({
-        name: normalizeText(file.originalname, 120),
-        mime,
-        data: file.buffer.toString('base64')
-      });
-    } else {
-      const text = file.buffer.toString('utf8');
-      documents.push({
-        name: normalizeText(file.originalname, 120),
-        text: text.slice(0, 25000)
-      });
-    }
-  }
-  return { images, documents };
-}
-
-async function transcribeMedia(file, lang) {
-  const groq = getGroqClient();
-  const mediaBlob = new Blob([file.buffer], { type: file.mimetype });
-  const mediaFile = new File([mediaBlob], file.originalname || 'media_input.webm', { type: file.mimetype });
-  const response = await groq.audio.transcriptions.create({
-    file: mediaFile,
-    model: AUDIO_MODEL,
-    language: ALLOWED_LANGUAGES.has(lang) ? lang : undefined
-  });
-  return normalizeText(response.text, 12000);
-}
-
-app.post('/api/chat', upload.fields([
-  { name: 'files', maxCount: 5 },
-  { name: 'audio', maxCount: 1 },
-  { name: 'video', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    const body = req.body || {};
-    const message = normalizeText(body.message || body.prompt, 12000);
-    const uploadedFiles = req.files?.files || [];
-    const audioFile = req.files?.audio?.[0] || null;
-    const videoFile = req.files?.video?.[0] || null;
-
-    if (!message && !uploadedFiles.length && !audioFile && !videoFile) {
-      return res.status(400).json({ error: 'الرجاء كتابة نص أو إدخال ملف، صوت، أو فيديو لمعالجته.' });
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    const lang = detectLanguage(message, body.language);
-    let mediaTranscript = '';
-
-    const targetMedia = videoFile || audioFile;
-    if (targetMedia) {
-      try {
-        mediaTranscript = await transcribeMedia(targetMedia, lang);
-      } catch (err) {
-        return res.status(500).json({ error: `فشل معالجة ملف الوسائط: ${err.message}` });
-      }
-    }
-
-    const messages = [{ role: 'system', content: buildSystemPrompt(lang) }];
-
-    if (body.history) {
-      try {
-        const parsedHistory = Array.isArray(body.history) ? body.history : JSON.parse(body.history);
-        parsedHistory.slice(-6).forEach(item => {
-          if (item.role && item.content) {
-            messages.push({ role: item.role, content: normalizeText(item.content, 2000) });
-          }
+    function copyText(button) {
+        const text = button.parentElement.querySelector('span').innerText.trim();
+        navigator.clipboard.writeText(text).then(() => {
+            button.innerHTML = '<i class="fa-solid fa-check" style="color: #00ffcc;"></i>';
+            setTimeout(() => { button.innerHTML = '<i class="fa-regular fa-copy"></i>'; }, 2000);
         });
-      } catch (e) {}
     }
+</script>
+</body>
+</html>`;
 
-    let liveSources = [];
-    const combinedQuery = [message, mediaTranscript].filter(Boolean).join(' ');
-    
-    if (detectSearchNeeds(combinedQuery)) {
-      liveSources = await searchTavily(combinedQuery);
-      messages.push({
-        role: 'system',
-        content: liveSources.length 
-          ? `أخبار حية ومؤكدة نُشرت خلال الـ 24 ساعة الماضية استعن بها فوراً:\n${JSON.stringify(liveSources)}`
-          : `تنبيه: لم يتم العثور على مقالات إخبارية موثوقة نُشرت طوال الـ 24 ساعة الماضية حول هذا الموضوع.`
-      });
-    }
+fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), HTML_CONTENT, 'utf8');
+app.use(express.static(PUBLIC_DIR));
 
-    const { images, documents } = extractUploadedContent(uploadedFiles);
-    let userStructuredContent = [];
-    
-    if (message) userStructuredContent.push({ type: 'text', text: message });
-    if (mediaTranscript) userStructuredContent.push({ type: 'text', text: `[المحتوى المستخرج من الـ ${videoFile ? 'فيديو' : 'صوت'}]: ${mediaTranscript}` });
-
-    documents.forEach(doc => {
-      userStructuredContent.push({ type: 'text', text: `\n[محتوى مستند نصي ${doc.name}]:\n${doc.text}` });
-    });
-
-    images.forEach(img => {
-      userStructuredContent.push({
-        type: 'image_url',
-        image_url: { url: `data:${img.mime};base64,${img.data}` }
-      });
-    });
-
-    const activeModel = images.length > 0 ? VISION_MODEL : GROQ_MODEL;
-    messages.push({ role: 'user', content: userStructuredContent });
-
-    const groq = getGroqClient();
-    const completion = await groq.chat.completions.create({
-      model: activeModel,
-      messages,
-      temperature: 0.25,
-      max_tokens: 2500
-    });
-
-    const finalAnswer = completion?.choices?.[0]?.message?.content;
-    if (!finalAnswer) throw new Error('النموذج لم يقم بتوليد رد مناسب.');
-
-    return res.json({
-      answer: finalAnswer,
-      language: lang,
-      transcription: mediaTranscript || undefined,
-      sources: liveSources.map(s => ({ title: s.title, url: s.url, date: s.publishedDate }))
-    });
-
-  } catch (error) {
-    console.error('API Error:', error);
-    return res.status(error.status || 500).json({ error: error.message || 'حدث خطأ أثناء الاتصال بالخادم.' });
-  }
-});
-
-app.listen(PORT, () => {
-  console.log(`⚡ خادم الذكاء العربي الخارق يعمل على المنفذ: ${PORT} ⚡`);
-});
+// الإعدادات والنماذج فائقة اللحظية لـ Groq
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+const VISION_MODEL = process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
