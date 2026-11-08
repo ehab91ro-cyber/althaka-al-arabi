@@ -266,6 +266,6 @@ const HTML_CONTENT = `<!DOCTYPE html>
 fs.writeFileSync(path.join(PUBLIC_DIR, 'index.html'), HTML_CONTENT, 'utf8');
 app.use(express.static(PUBLIC_DIR));
 
-// الإعدادات والنماذج فائقة اللحظية لـ Groq
+// الإعدادات والنماذج الحية المتطورة لـ Groq
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const VISION_MODEL = process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
