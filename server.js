@@ -1,4 +1,3 @@
-
 const express = require("express");
 const OpenAI = require("openai");
 const path = require("path");
@@ -1217,8 +1216,95 @@ async function collectSources(
   };
 }
 
+/* =====================================================
+   ضغط نتائج المصادر لتقليل استهلاك الرموز
+===================================================== */
+
+function compactSourceList(items, limit, textLimit) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items.slice(0, limit).map(item => {
+    const compact = {
+      source: item.source || "",
+      title: String(item.title || "").slice(0, 240),
+      text: String(item.text || "").slice(0, textLimit),
+      url: String(item.url || "").slice(0, 700)
+    };
+
+    if (item.publishedDate) {
+      compact.publishedDate = item.publishedDate;
+    }
+
+    if (item.verifiedPublishedDate) {
+      compact.verifiedPublishedDate = item.verifiedPublishedDate;
+    }
+
+    if (item.verifiedPublishedTimestamp) {
+      compact.verifiedPublishedTimestamp =
+        item.verifiedPublishedTimestamp;
+    }
+
+    if (item.publicationDateSource) {
+      compact.publicationDateSource =
+        item.publicationDateSource;
+    }
+
+    if (item.articleUrl) {
+      compact.articleUrl = item.articleUrl;
+    }
+
+    if (item.dateVerifiedFromOriginalPage === true) {
+      compact.dateVerifiedFromOriginalPage = true;
+    }
+
+    return compact;
+  });
+}
+
 function formatSources(sources) {
-  return JSON.stringify(sources, null, 2);
+  const compact = {
+    wikipedia: compactSourceList(sources.wikipedia, 3, 700),
+    wikidata: compactSourceList(sources.wikidata, 3, 220),
+    tavily: compactSourceList(
+      sources.tavily,
+      sources.news ? 7 : 5,
+      sources.news ? 650 : 500
+    ),
+    news: Boolean(sources.news),
+    newsStats: sources.newsStats || null
+  };
+
+  let output = JSON.stringify(compact);
+
+  const MAX_SOURCE_CONTEXT_CHARS = 4500;
+
+  if (output.length > MAX_SOURCE_CONTEXT_CHARS) {
+    for (const listName of ["tavily", "wikipedia", "wikidata"]) {
+      for (const item of compact[listName]) {
+        if (output.length <= MAX_SOURCE_CONTEXT_CHARS) {
+          break;
+        }
+
+        const excess = output.length - MAX_SOURCE_CONTEXT_CHARS;
+        const current = item.text || "";
+        const reduction = Math.min(
+          current.length,
+          Math.max(excess + 100, Math.ceil(current.length / 2))
+        );
+
+        item.text = current.slice(0, Math.max(100, current.length - reduction));
+        output = JSON.stringify(compact);
+      }
+    }
+  }
+
+  if (output.length > MAX_SOURCE_CONTEXT_CHARS) {
+    output = output.slice(0, MAX_SOURCE_CONTEXT_CHARS);
+  }
+
+  return output;
 }
 
 /* =====================================================
@@ -1247,6 +1333,108 @@ const client = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
   baseURL: "https://api.groq.com/openai/v1"
 });
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getGroqRetryDelay(error) {
+  const headers = error?.headers || error?.response?.headers;
+
+  const getHeader = name => {
+    if (!headers) return null;
+
+    if (typeof headers.get === "function") {
+      return headers.get(name);
+    }
+
+    return headers[name] || headers[name.toLowerCase()] || null;
+  };
+
+  const retryAfter = getHeader("retry-after");
+
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.ceil(seconds * 1000);
+    }
+
+    const dateDelay = Date.parse(retryAfter) - Date.now();
+
+    if (Number.isFinite(dateDelay) && dateDelay > 0) {
+      return dateDelay;
+    }
+  }
+
+  const resetTokens = getHeader("x-ratelimit-reset-tokens");
+
+  if (resetTokens) {
+    const match = String(resetTokens).match(
+      /(\d+(?:\.\d+)?)\s*(ms|s|m)?/i
+    );
+
+    if (match) {
+      const amount = Number(match[1]);
+      const unit = (match[2] || "s").toLowerCase();
+
+      if (Number.isFinite(amount)) {
+        if (unit === "ms") return Math.ceil(amount);
+        if (unit === "m") return Math.ceil(amount * 60000);
+        return Math.ceil(amount * 1000);
+      }
+    }
+  }
+
+  return 2500;
+}
+
+function isGroqRateLimit(error) {
+  const status = error?.status || error?.statusCode;
+  const message = String(error?.message || "").toLowerCase();
+
+  return (
+    status === 429 ||
+    message.includes("rate_limit_exceeded") ||
+    message.includes("rate limit") ||
+    message.includes("tokens per minute") ||
+    message.includes("request too large")
+  );
+}
+
+async function createGroqCompletion(messages) {
+  try {
+    return await client.chat.completions.create({
+      model: MODEL,
+      messages,
+      temperature: 0.3,
+      max_tokens: 1000
+    });
+  } catch (error) {
+    if (!isGroqRateLimit(error)) {
+      throw error;
+    }
+
+    const retryDelay = getGroqRetryDelay(error);
+
+    console.warn(
+      `[Groq] Rate limit detected. Retry delay=${retryDelay}ms`
+    );
+
+    if (retryDelay > 12000) {
+      throw error;
+    }
+
+    await sleep(retryDelay);
+
+    return client.chat.completions.create({
+      model: MODEL,
+      messages,
+      temperature: 0.3,
+      max_tokens: 1000
+    });
+  }
+}
 
 /* =====================================================
    فحص صحة الخادم
@@ -1328,30 +1516,33 @@ app.post("/api/chat", async (req, res) => {
 
     const sourceContext = formatSources(sources);
 
-    const completion = await client.chat.completions.create({
-      model: MODEL,
-      messages: [
-        {
-          role: "system",
-          content: buildSystemPrompt(
-            language,
-            needs.news,
-            checkedAt,
-            sources.newsStats
-          )
-        },
-        {
-          role: "user",
-          content:
-            `رسالة المستخدم:\n${message}\n\n` +
-            `وقت التحقق حسب الخادم:\n${checkedAt}\n\n` +
-            `نتائج المصادر:\n${sourceContext}\n\n` +
-            `أجب بلغة ${languageName}.`
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 2500
-    });
+    const MAX_USER_MESSAGE_CHARS = 9000;
+    const safeMessage = message.length > MAX_USER_MESSAGE_CHARS
+      ? message.slice(0, MAX_USER_MESSAGE_CHARS) +
+        "\n\n[تم اختصار الرسالة تلقائياً لتفادي تجاوز حدود معالجة النموذج.]"
+      : message;
+
+    const messages = [
+      {
+        role: "system",
+        content: buildSystemPrompt(
+          language,
+          needs.news,
+          checkedAt,
+          sources.newsStats
+        )
+      },
+      {
+        role: "user",
+        content:
+          `رسالة المستخدم:\n${safeMessage}\n\n` +
+          `وقت التحقق حسب الخادم:\n${checkedAt}\n\n` +
+          `نتائج المصادر:\n${sourceContext}\n\n` +
+          `أجب بلغة ${languageName}.`
+      }
+    ];
+
+    const completion = await createGroqCompletion(messages);
 
     const answer =
       completion.choices?.[0]?.message?.content ||
@@ -1380,8 +1571,12 @@ app.post("/api/chat", async (req, res) => {
   } catch (error) {
     console.error("[Chat error]", error);
 
-    return res.status(500).json({
-      error: "حدث خطأ أثناء معالجة طلبك.",
+    const rateLimited = isGroqRateLimit(error);
+
+    return res.status(rateLimited ? 429 : 500).json({
+      error: rateLimited
+        ? "وصل المساعد مؤقتاً إلى حد استخدام النموذج. تم تقليل حجم البيانات ومحاولة إعادة الطلب تلقائياً، لكن الحد ما زال قائماً. انتظر قليلاً ثم أعد إرسال سؤالك."
+        : "حدث خطأ أثناء معالجة طلبك. يرجى المحاولة مرة أخرى بعد قليل.",
       details: process.env.NODE_ENV === "development"
         ? error.message
         : undefined
