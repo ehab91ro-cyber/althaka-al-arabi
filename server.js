@@ -315,22 +315,35 @@ function getNewsRelevanceProfile(message) {
   const value = String(message || '').toLowerCase();
   const turkeyRequested = /(تركيا|التركية|تركي|turkey|turkish|türkiye|turkiye|ankara)/i.test(value);
   const economyRequested = /(اقتصاد|اقتصادية|اقتصادي|التضخم|الليرة|البنك المركزي|الفائدة|أسعار|الأسواق|المالية|تجارة|صادرات|واردات|economy|economic|inflation|lira|central bank|interest rate|markets|finance|financial|trade|exports|imports)/i.test(value);
+
   if (turkeyRequested && economyRequested) {
     return {
       requiredGroups: [
-        ['تركيا', 'التركية', 'تركي', 'turkey', 'turkish', 'türkiye', 'turkiye', 'ankara', 'turkish minister', 'turkish government'],
-        ['اقتصاد', 'اقتصادية', 'التضخم', 'الليرة', 'البنك المركزي', 'الفائدة', 'المالية', 'الأسواق', 'صادرات', 'واردات', 'economy', 'economic', 'inflation', 'lira', 'central bank', 'interest rate', 'finance', 'financial', 'markets', 'trade', 'exports', 'imports']
+        ['تركيا', 'التركية', 'تركي', 'turkey', 'turkish', 'türkiye', 'turkiye', 'ankara', 'istanbul'],
+        ['اقتصاد', 'اقتصادية', 'اقتصادي', 'التضخم', 'الليرة', 'البنك المركزي', 'الفائدة', 'المالية', 'الأسواق', 'صادرات', 'واردات', 'تجارة', 'economy', 'economic', 'inflation', 'lira', 'central bank', 'interest rate', 'finance', 'financial', 'markets', 'trade', 'exports', 'imports', 'monetary policy', 'currency']
       ],
       label: 'Turkey economy'
     };
   }
+
   return null;
 }
 
+/*
+ * قيّم الصلة بعد فتح صفحة المقال الأصلية. لا نستخدم مقتطف محرك البحث
+ * كدليل كافٍ على أن الخبر يتناول اقتصاد الدولة المطلوبة.
+ */
 function isRelevantNewsItem(item, profile) {
   if (!profile) return true;
-  const text = (String(item.title || '') + ' ' + String(item.text || '')).toLowerCase();
-  return profile.requiredGroups.every(group => group.some(term => text.includes(term)));
+
+  const articleText = [
+    item.title || '',
+    item.articleDescription || ''
+  ].join(' ').toLowerCase();
+
+  return profile.requiredGroups.every(group =>
+    group.some(term => articleText.includes(term))
+  );
 }
 
 async function searchNewsQueries(message, lang) {
@@ -610,6 +623,7 @@ async function verifyOriginalArticle(item, now = Date.now()) {
     return {
       ...item,
       title: metadata.title || item.title,
+      articleDescription: metadata.description || '',
       text: normalizeText([item.text, metadata.description].filter(Boolean).join(' — '), 2600),
       url: canonicalUrl,
       source: new URL(canonicalUrl).hostname.replace(/^www\./, ''),
@@ -990,8 +1004,9 @@ app.post('/api/chat', (req, res, next) => {
       if (newsMode) {
         const webResults = await searchNewsQueries(message, lang);
         const relevanceProfile = getNewsRelevanceProfile(message);
-        const relevantCandidates = webResults.filter(item => isRelevantNewsItem(item, relevanceProfile));
-        const verifiedArticles = await verifyRecentNews(relevantCandidates);
+
+        // افتح صفحات المقالات أولاً، ثم طبّق فلترة الصلة على بيانات الصفحة الأصلية.
+        const verifiedArticles = await verifyRecentNews(webResults);
         sources = verifiedArticles.filter(item => isRelevantNewsItem(item, relevanceProfile));
 
         newsNotice = sources.length
