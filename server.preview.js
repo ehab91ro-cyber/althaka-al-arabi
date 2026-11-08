@@ -135,7 +135,10 @@ function detectVolatileFactIntent(message) {
     /(?:سعر|أسعار|كم\s+سعر|سعر\s+الصرف|exchange\s+rate|stock\s+price|market\s+price|inflation\s+rate|faiz\s+oranı)/i,
     /(?:القانون\s+الحالي|آخر\s+تعديل\s+للقانون|current\s+law|latest\s+regulation|yürürlükteki\s+kanun)/i,
     /(?:الطقس|درجة\s+الحرارة|weather|forecast|hava\s+durumu)/i,
-    /(?:نتيجة\s+المباراة|ترتيب\s+الدوري|نتائج\s+الانتخابات|election\s+results|match\s+score|league\s+standings)/i
+    /(?:نتيجة\s+المباراة|ترتيب\s+الدوري|نتائج\s+الانتخابات|election\s+results|match\s+score|league\s+standings)/i,
+    /(?:من\s+(?:فاز|ربح)\s+(?:في\s+)?(?:المباراة|مباراة)|(?:من\s+)?الفائز\s+في\s+(?:المباراة|مباراة)|نتيجة\s+(?:مباراة|المباراة)|(?:مباراة|المباراة)\s+(?:اليوم|أمس|البارحة|الأمس)|من\s+فاز\s+أمس)/i,
+    /who\s+won\s+(?:the\s+)?(?:match|game)\b|(?:match|game)\s+result\b/i,
+    /(?:maçı\s+kim\s+kazandı|kim\s+kazandı|maç\s+sonucu|dünkü\s+maç)/i
   ];
   return patterns.some(pattern => pattern.test(value));
 }
