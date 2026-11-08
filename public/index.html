@@ -1176,6 +1176,17 @@ async function sendMessage() {
       );
     }
 
+    if (data.diagnostics && typeof data.diagnostics === 'object') {
+      const diagnostic = data.diagnostics;
+      console.info('Chat diagnostics', {
+        intent: typeof diagnostic.intent === 'string' ? diagnostic.intent : 'UNKNOWN',
+        latencyMs: Number.isFinite(diagnostic.latencyMs) ? diagnostic.latencyMs : null,
+        tavilyCalls: Number.isInteger(diagnostic.tavilyCalls) ? diagnostic.tavilyCalls : null,
+        sourcesCount: Number.isInteger(diagnostic.sourcesCount) ? diagnostic.sourcesCount : null,
+        status: typeof diagnostic.status === 'string' ? diagnostic.status : 'unknown'
+      });
+    }
+
     if (!response.ok) {
       throw new Error(
         data.error ||
@@ -1198,17 +1209,6 @@ async function sendMessage() {
 
     languageSelect.value = data.language;
     updateLanguage();
-
-    if (data.diagnostics && typeof data.diagnostics === 'object') {
-      const diagnostic = data.diagnostics;
-      console.info('Chat diagnostics', {
-        intent: typeof diagnostic.intent === 'string' ? diagnostic.intent : 'UNKNOWN',
-        latencyMs: Number.isFinite(diagnostic.latencyMs) ? diagnostic.latencyMs : null,
-        tavilyCalls: Number.isInteger(diagnostic.tavilyCalls) ? diagnostic.tavilyCalls : null,
-        sourcesCount: Number.isInteger(diagnostic.sourcesCount) ? diagnostic.sourcesCount : null,
-        status: typeof diagnostic.status === 'string' ? diagnostic.status : 'unknown'
-      });
-    }
 
     const reply = data.answer.trim();
 
