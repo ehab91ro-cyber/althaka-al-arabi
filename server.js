@@ -8,6 +8,10 @@ const dns = require('dns').promises;
 const net = require('net');
 
 const app = express();
+app.use((req, _res, next) => {
+  req.requestStartedAt = Date.now();
+  next();
+});
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -1057,7 +1061,7 @@ app.post('/api/chat', (req, res, next) => {
       });
     }
 
-    sourcesCount = sources.length;
+    sourcesCount = Math.min(sources.length, 12);
 
     const userContent = createUserContent(
       message,
@@ -1137,7 +1141,7 @@ app.get('*', (req, res, next) => {
   );
 });
 
-app.use((error, _req, res, _next) => {
+app.use((error, req, res, _next) => {
   console.error('Server error:', error);
 
   if (res.headersSent) return;
@@ -1149,11 +1153,27 @@ app.use((error, _req, res, _next) => {
         ? 'عدد الملفات المرفقة أكبر من الحد المسموح.'
         : 'تعذر استقبال المرفقات. تحقق من عدد الملفات وأحجامها.';
 
-    return res.status(400).json({ error: message });
+    return res.status(400).json({
+      error: message,
+      diagnostics: {
+        intent: 'UPLOAD_ERROR',
+        latencyMs: Date.now() - (req.requestStartedAt || Date.now()),
+        tavilyCalls: 0,
+        sourcesCount: 0,
+        status: 'error'
+      }
+    });
   }
 
   res.status(error.status || 500).json({
-    error: error.message || 'حدث خطأ داخلي في الخادم.'
+    error: error.message || 'حدث خطأ داخلي في الخادم.',
+    diagnostics: {
+      intent: 'REQUEST_ERROR',
+      latencyMs: Date.now() - (req.requestStartedAt || Date.now()),
+      tavilyCalls: 0,
+      sourcesCount: 0,
+      status: 'error'
+    }
   });
 });
 
