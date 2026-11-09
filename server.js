@@ -96,9 +96,11 @@ function detectLanguage(text, requested) {
   const latin = (value.match(/[A-Za-z]/g) || []).length;
   if (arabic > latin) return 'ar';
 
-  if (/\\b(merhaba|nasıl|neden|bugün|haberler|teşekkür|lütfen|istanbul|türkiye|hangi|nerede|kim|kaç|nedir|hakkında|bilgi|ülke|şehir|köy|spor|hava|durumu|sonuç|skor|maç|takım|başkent|ekonomi|savaş|tarih|fiyat|bugun|icin|için)\\b/i.test(value)) {
+  if (/\b(merhaba|nasıl|neden|bugün|haberler|teşekkür|lütfen|istanbul|türkiye|hangi|nerede|kim|kaç|nedir|hakkında|bilgi|ülke|şehir|köy|spor|hava|durumu|sonuç|skor|maç|takım|başkent|ekonomi|savaş|tarih|fiyat|bugun|icin|için)\b/i.test(value)) {
     return 'tr';
   }
+
+  return 'en';
 }
 
 function languageName(lang) {
