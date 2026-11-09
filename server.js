@@ -16,6 +16,9 @@ const PORT = Number(process.env.PORT || 3000);
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 const AI_PROVIDER = String(process.env.AI_PROVIDER || 'groq').toLowerCase();
+const GEMINI_GOOGLE_SEARCH_ENABLED = ['1', 'true', 'yes', 'on'].includes(
+  String(process.env.GEMINI_GOOGLE_SEARCH_ENABLED || '').toLowerCase()
+);
 const VISION_MODEL = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
 const AUDIO_MODEL = process.env.GROQ_AUDIO_MODEL || 'whisper-large-v3-turbo';
 const NEWS_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -813,7 +816,33 @@ function convertMessagesForGemini(messages) {
   return { systemInstruction, contents };
 }
 
-async function callGemini(messages, model = GEMINI_MODEL) {
+function extractGeminiGroundingSources(response) {
+  const candidates = Array.isArray(response?.candidates) ? response.candidates : [];
+  const chunks = candidates.flatMap(candidate =>
+    Array.isArray(candidate?.groundingMetadata?.groundingChunks)
+      ? candidate.groundingMetadata.groundingChunks
+      : []
+  );
+  const seen = new Set();
+  const sources = [];
+
+  for (const chunk of chunks) {
+    const web = chunk?.web;
+    const url = typeof web?.uri === 'string' ? web.uri : '';
+    if (!/^https:\/\//i.test(url) || seen.has(url)) continue;
+    seen.add(url);
+    sources.push({
+      title: normalizeText(web.title || url, 180),
+      url,
+      source: 'Google Search'
+    });
+    if (sources.length >= 8) break;
+  }
+
+  return sources;
+}
+
+async function callGemini(messages, model = GEMINI_MODEL, options = {}) {
   const ai = await getGeminiClient();
   const converted = convertMessagesForGemini(messages);
 
@@ -827,20 +856,28 @@ async function callGemini(messages, model = GEMINI_MODEL) {
     config: {
       systemInstruction: converted.systemInstruction || undefined,
       temperature: 0.3,
-      maxOutputTokens: 2000
+      maxOutputTokens: 2000,
+      ...(options.googleSearch ? { tools: [{ googleSearch: {} }] } : {})
     }
   });
 
   const answer = typeof response.text === 'function' ? response.text() : response.text;
   if (!answer) throw new Error('لم يُرجع Gemini إجابة نصية.');
-  return { answer: String(answer), provider: 'gemini', model };
+  return {
+    answer: String(answer),
+    provider: 'gemini',
+    model,
+    groundingSources: options.googleSearch ? extractGeminiGroundingSources(response) : []
+  };
 }
 
 async function callAssistant(messages, options = {}) {
   const requestedProvider = options.provider || AI_PROVIDER;
 
   if (requestedProvider === 'gemini') {
-    return callGemini(messages, options.model || GEMINI_MODEL);
+    return callGemini(messages, options.model || GEMINI_MODEL, {
+      googleSearch: options.googleSearch === true
+    });
   }
 
   const completion = await callGroq(messages, options.model || GROQ_MODEL);
@@ -1065,6 +1102,7 @@ app.get('/api/health', (_req, res) => {
     model: AI_PROVIDER === 'gemini' ? GEMINI_MODEL : GROQ_MODEL,
     provider: AI_PROVIDER === 'gemini' ? 'gemini' : 'groq',
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+    geminiGoogleSearchEnabled: GEMINI_GOOGLE_SEARCH_ENABLED,
     visionModel: VISION_MODEL,
     audioModel: AUDIO_MODEL,
     groqConfigured: Boolean(process.env.GROQ_API_KEY),
@@ -1191,11 +1229,18 @@ app.post('/api/chat', (req, res, next) => {
     const selectedModel = selectedProvider === 'gemini'
       ? GEMINI_MODEL
       : images.length ? VISION_MODEL : GROQ_MODEL;
+    const useGeminiGoogleSearch = selectedProvider === 'gemini' &&
+      GEMINI_GOOGLE_SEARCH_ENABLED && searchNeeded && !newsMode;
     const completion = await callAssistant(messages, {
       provider: selectedProvider,
-      model: selectedModel
+      model: selectedModel,
+      googleSearch: useGeminiGoogleSearch
     });
     const answer = completion.answer;
+    const responseSources = [
+      ...sources,
+      ...(newsMode ? [] : (completion.groundingSources || []))
+    ];
 
     return res.json({
       answer,
@@ -1203,7 +1248,10 @@ app.post('/api/chat', (req, res, next) => {
       aiModel: completion.model,
       language: lang,
       ...(transcript ? { transcription: transcript } : {}),
-      sources: sources.slice(0, 12).map(source => ({
+      ...(useGeminiGoogleSearch ? {
+        geminiGoogleSearchUsed: Boolean(completion.groundingSources?.length)
+      } : {}),
+      sources: responseSources.slice(0, 12).map(source => ({
         title: source.title,
         url: source.url,
         source: source.source,
@@ -1270,6 +1318,7 @@ app.listen(PORT, () => {
   console.log(`AI provider: ${AI_PROVIDER}`);
   console.log(`Groq model: ${GROQ_MODEL}`);
   console.log(`Gemini model: ${GEMINI_MODEL}`);
+  console.log(`Gemini Google Search grounding: ${GEMINI_GOOGLE_SEARCH_ENABLED ? 'enabled' : 'disabled'}`);
   console.log(`Vision model: ${VISION_MODEL}`);
   console.log(`Tavily search: ${process.env.TAVILY_API_KEY ? 'configured' : 'not configured'}`);
 });
