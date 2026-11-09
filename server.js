@@ -15,6 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const PORT = Number(process.env.PORT || 3000);
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.6-flash';
 const AI_PROVIDER = String(process.env.AI_PROVIDER || 'gemini').toLowerCase();
 const GEMINI_GOOGLE_SEARCH_ENABLED = ['1', 'true', 'yes', 'on'].includes(
   String(process.env.GEMINI_GOOGLE_SEARCH_ENABLED || '').toLowerCase()
@@ -850,39 +851,48 @@ async function callGemini(messages, model = GEMINI_MODEL, options = {}) {
     throw new Error('لا يوجد محتوى صالح لإرساله إلى Gemini.');
   }
 
+  const request = targetModel => ai.models.generateContent({
+    model: targetModel,
+    contents: converted.contents,
+    config: {
+      systemInstruction: converted.systemInstruction || undefined,
+      temperature: 0.3,
+      maxOutputTokens: 2000,
+      ...(options.googleSearch ? { tools: [{ googleSearch: {} }] } : {})
+    }
+  });
+
   let response;
-  const retryDelays = []; // Fail over quickly instead of exhausting the client timeout
+  let usedModel = model;
 
-  for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
-    try {
-      response = await ai.models.generateContent({
-        model,
-        contents: converted.contents,
-        config: {
-          systemInstruction: converted.systemInstruction || undefined,
-          temperature: 0.3,
-          maxOutputTokens: 2000,
-          ...(options.googleSearch ? { tools: [{ googleSearch: {} }] } : {})
-        }
-      });
-      break;
-    } catch (error) {
-      const status = Number(error?.status || error?.code || 0);
-      const message = String(error?.message || '');
-      const temporarilyUnavailable =
-        [408, 429, 500, 502, 503, 504].includes(status) ||
-        /high demand|temporarily unavailable|overloaded|\bUNAVAILABLE\b/i.test(message);
+  try {
+    response = await request(model);
+  } catch (primaryError) {
+    const status = Number(primaryError?.status || primaryError?.code || 0);
+    const message = String(primaryError?.message || '');
+    const overloaded =
+      status === 503 ||
+      /high demand|temporarily unavailable|overloaded|\bUNAVAILABLE\b/i.test(message);
 
-      if (!temporarilyUnavailable || attempt >= retryDelays.length) {
-        if (temporarilyUnavailable && (status === 503 || /high demand|overloaded|UNAVAILABLE/i.test(message))) {
-          error.userMessage = 'خدمة الذكاء الاصطناعي مزدحمة مؤقتاً. انتظر قليلاً ثم أعد إرسال رسالتك؛ لم يتم حذفها.';
-          error.status = 503;
-        }
-        throw error;
+    if (!overloaded || !GEMINI_FALLBACK_MODEL || GEMINI_FALLBACK_MODEL === model) {
+      if (overloaded) {
+        primaryError.userMessage = 'خدمة Gemini مزدحمة مؤقتاً ولم ينجح النموذج الاحتياطي. أعد المحاولة بعد قليل؛ لم يتم حذف رسالتك.';
+        primaryError.status = 503;
       }
+      throw primaryError;
+    }
 
-      console.warn(`Gemini temporarily unavailable (attempt ${attempt + 1}/3). Retrying...`);
-      await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
+    console.warn(`Gemini primary model ${model} is overloaded; trying Gemini fallback model ${GEMINI_FALLBACK_MODEL}.`);
+
+    try {
+      response = await request(GEMINI_FALLBACK_MODEL);
+      usedModel = GEMINI_FALLBACK_MODEL;
+      console.info(`Gemini fallback succeeded: ${usedModel}`);
+    } catch (fallbackError) {
+      console.error('Gemini fallback model failed:', fallbackError?.message || fallbackError);
+      fallbackError.userMessage = 'خدمة Gemini الرئيسية والاحتياطية مشغولتان مؤقتاً. أعد المحاولة بعد قليل؛ لم يتم حذف رسالتك.';
+      fallbackError.status = 503;
+      throw fallbackError;
     }
   }
 
@@ -891,11 +901,10 @@ async function callGemini(messages, model = GEMINI_MODEL, options = {}) {
   return {
     answer: String(answer),
     provider: 'gemini',
-    model,
+    model: usedModel,
     groundingSources: options.googleSearch ? extractGeminiGroundingSources(response) : []
   };
 }
-
 async function callAssistant(messages, options = {}) {
   const requestedProvider = options.provider || 'gemini';
 
@@ -1126,6 +1135,7 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     service: 'الذكاء العربي الخارق',
     model: AI_PROVIDER === 'gemini' ? GEMINI_MODEL : GROQ_MODEL,
+    fallbackModel: GEMINI_FALLBACK_MODEL,
     provider: AI_PROVIDER === 'gemini' ? 'gemini' : 'groq',
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
     geminiGoogleSearchEnabled: GEMINI_GOOGLE_SEARCH_ENABLED,
@@ -1368,6 +1378,7 @@ app.listen(PORT, () => {
   console.log(`AI provider: ${AI_PROVIDER}`);
   console.log(`Groq model: ${GROQ_MODEL}`);
   console.log(`Gemini model: ${GEMINI_MODEL}`);
+  console.log(`Gemini fallback model: ${GEMINI_FALLBACK_MODEL}`);
   console.log(`Gemini Google Search grounding: ${GEMINI_GOOGLE_SEARCH_ENABLED ? 'enabled' : 'disabled'}`);
   console.log(`Vision model: ${VISION_MODEL}`);
   console.log(`Tavily search: ${process.env.TAVILY_API_KEY ? 'configured' : 'not configured'}`);
