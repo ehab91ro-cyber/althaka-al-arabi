@@ -494,7 +494,8 @@ const translations = {
     uploadError:"نوع الملف غير مدعوم. استخدم الصور أو TXT أو MD أو CSV أو JSON.",
     maxFiles:"يمكنك إرفاق خمسة ملفات كحد أقصى.",
     fileTooLarge:"حجم الملف أكبر من 20 ميغابايت.",
-    retry:"لم يتم الإرسال. احتفظت بالمرفقات لتتمكن من المحاولة مرة أخرى."
+    retry:"تعذر إكمال الطلب. احتفظت برسالتك ومرفقاتك لتتمكن من المحاولة مرة أخرى.",
+    timeout:"استغرق الاتصال وقتاً أطول من المتوقع. أوقفنا الانتظار؛ أعد إرسال رسالتك."
   },
 
   en: {
@@ -520,7 +521,8 @@ const translations = {
     uploadError:"Unsupported file type. Use images, TXT, MD, CSV or JSON.",
     maxFiles:"You can attach a maximum of five files.",
     fileTooLarge:"The file is larger than 20 MB.",
-    retry:"Sending failed. Your attachments have been kept for another attempt."
+    retry:"The request could not be completed. Your message and attachments have been kept.",
+    timeout:"The request took too long. Waiting was stopped; please send your message again."
   },
 
   tr: {
@@ -546,7 +548,8 @@ const translations = {
     uploadError:"Desteklenmeyen dosya türü. Görsel, TXT, MD, CSV veya JSON kullanın.",
     maxFiles:"En fazla beş dosya ekleyebilirsiniz.",
     fileTooLarge:"Dosya boyutu 20 MB'tan büyük.",
-    retry:"Gönderilemedi. Ekleriniz yeniden denemeniz için korundu."
+    retry:"İstek tamamlanamadı. Mesajınız ve ekleriniz yeniden denemeniz için korundu.",
+    timeout:"İstek çok uzun sürdü. Bekleme durduruldu; lütfen mesajınızı tekrar gönderin."
   }
 };
 
@@ -940,6 +943,20 @@ micButton.onclick = async () => {
   }
 };
 
+async function fetchChatWithTimeout(url, options) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 70000);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function getConversationHistory() {
   return conversationHistory.slice(-MAX_HISTORY);
 }
@@ -1116,13 +1133,13 @@ async function sendMessage() {
         );
       }
 
-      response = await fetch("/api/chat", {
+      response = await fetchChatWithTimeout("/api/chat", {
         method: "POST",
         body: form
       });
 
     } else {
-      response = await fetch("/api/chat", {
+      response = await fetchChatWithTimeout("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -1202,8 +1219,11 @@ async function sendMessage() {
   } catch (error) {
     console.error("Chat request failed:", error);
 
-    bot.answer.textContent =
-      error.message || t().error;
+    const displayError = error.name === "AbortError"
+      ? t().timeout
+      : (error.message || t().error);
+
+    bot.answer.textContent = displayError;
 
     bot.copy.style.display = "none";
 
