@@ -897,43 +897,15 @@ async function callGemini(messages, model = GEMINI_MODEL, options = {}) {
 }
 
 async function callAssistant(messages, options = {}) {
-  const requestedProvider = options.provider || AI_PROVIDER;
+  const requestedProvider = options.provider || 'gemini';
 
   if (requestedProvider === 'gemini') {
-    try {
-      return await callGemini(messages, options.model || GEMINI_MODEL, {
-        googleSearch: options.googleSearch === true
-      });
-    } catch (geminiError) {
-      const status = Number(geminiError?.status || geminiError?.code || 0);
-      const message = String(geminiError?.message || '');
-      const temporarilyUnavailable =
-        [408, 429, 500, 502, 503, 504].includes(status) ||
-        /high demand|temporarily unavailable|overloaded|\\bUNAVAILABLE\\b/i.test(message);
-
-      // لا ننتقل إلى مزود آخر عند أخطاء المفتاح أو اسم النموذج أو إعدادات الحساب.
-      if (!temporarilyUnavailable || !process.env.GROQ_API_KEY) {
-        throw geminiError;
-      }
-
-      console.warn('Gemini is temporarily unavailable. Falling back to Groq for this request.');
-      try {
-        const completion = await callGroq(messages, GROQ_MODEL);
-        const answer = completion?.choices?.[0]?.message?.content;
-        if (!answer) throw new Error('لم يُرجع Groq إجابة نصية.');
-        return {
-          answer,
-          provider: 'groq',
-          model: GROQ_MODEL,
-          fallbackFrom: 'gemini'
-        };
-      } catch (groqError) {
-        console.error('Groq fallback also failed:', groqError?.message || groqError);
-        throw geminiError;
-      }
-    }
+    return callGemini(messages, options.model || GEMINI_MODEL, {
+      googleSearch: options.googleSearch === true
+    });
   }
 
+  // Groq remains available only for existing image/audio workflows that explicitly request it.
   const completion = await callGroq(messages, options.model || GROQ_MODEL);
   const answer = completion?.choices?.[0]?.message?.content;
   if (!answer) throw new Error('لم يُرجع Groq إجابة نصية.');
@@ -1279,7 +1251,7 @@ app.post('/api/chat', (req, res, next) => {
       content: userContent
     });
 
-    const selectedProvider = images.length ? 'groq' : (AI_PROVIDER === 'gemini' ? 'gemini' : 'groq');
+    const selectedProvider = images.length ? 'groq' : 'gemini';
     const selectedModel = selectedProvider === 'gemini'
       ? GEMINI_MODEL
       : images.length ? VISION_MODEL : GROQ_MODEL;
