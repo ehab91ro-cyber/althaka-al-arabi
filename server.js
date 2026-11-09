@@ -850,16 +850,41 @@ async function callGemini(messages, model = GEMINI_MODEL, options = {}) {
     throw new Error('لا يوجد محتوى صالح لإرساله إلى Gemini.');
   }
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: converted.contents,
-    config: {
-      systemInstruction: converted.systemInstruction || undefined,
-      temperature: 0.3,
-      maxOutputTokens: 2000,
-      ...(options.googleSearch ? { tools: [{ googleSearch: {} }] } : {})
+  let response;
+  const retryDelays = [800, 1600];
+
+  for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+    try {
+      response = await ai.models.generateContent({
+        model,
+        contents: converted.contents,
+        config: {
+          systemInstruction: converted.systemInstruction || undefined,
+          temperature: 0.3,
+          maxOutputTokens: 2000,
+          ...(options.googleSearch ? { tools: [{ googleSearch: {} }] } : {})
+        }
+      });
+      break;
+    } catch (error) {
+      const status = Number(error?.status || error?.code || 0);
+      const message = String(error?.message || '');
+      const temporarilyUnavailable =
+        [408, 429, 500, 502, 503, 504].includes(status) ||
+        /high demand|temporarily unavailable|overloaded|\bUNAVAILABLE\b/i.test(message);
+
+      if (!temporarilyUnavailable || attempt >= retryDelays.length) {
+        if (temporarilyUnavailable && (status === 503 || /high demand|overloaded|UNAVAILABLE/i.test(message))) {
+          error.userMessage = 'خدمة الذكاء الاصطناعي مزدحمة مؤقتاً. انتظر قليلاً ثم أعد إرسال رسالتك؛ لم يتم حذفها.';
+          error.status = 503;
+        }
+        throw error;
+      }
+
+      console.warn(`Gemini temporarily unavailable (attempt ${attempt + 1}/3). Retrying...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
     }
-  });
+  }
 
   const answer = typeof response.text === 'function' ? response.text() : response.text;
   if (!answer) throw new Error('لم يُرجع Gemini إجابة نصية.');
@@ -1273,11 +1298,34 @@ app.post('/api/chat', (req, res, next) => {
         ? error.status
         : 500;
 
+    const fallbackMessage = status === 503
+      ? 'تعذر الوصول إلى خدمة الذكاء الاصطناعي حالياً. تحقق من إعدادات المفتاح أو حاول بعد قليل.'
+      : status === 429
+        ? 'تم تجاوز حد الطلبات مؤقتاً. انتظر قليلاً ثم حاول مجدداً.'
+        : status >= 500
+          ? 'حدث عطل مؤقت في خدمة الذكاء الاصطناعي. حاول مرة أخرى بعد قليل.'
+          : error.message || 'حدث خطأ أثناء معالجة طلبك. حاول مرة أخرى.';
+
+    const localizedMessage = lang === 'en'
+      ? (status === 503
+          ? 'The AI service is temporarily unavailable or busy. Please try again shortly.'
+          : status === 429
+            ? 'The request limit was temporarily reached. Please wait and try again.'
+            : status >= 500
+              ? 'A temporary AI service error occurred. Please try again shortly.'
+              : fallbackMessage)
+      : lang === 'tr'
+        ? (status === 503
+            ? 'Yapay zekâ hizmeti geçici olarak kullanılamıyor veya yoğun. Lütfen biraz sonra tekrar deneyin.'
+            : status === 429
+              ? 'Geçici istek sınırına ulaşıldı. Lütfen bekleyip tekrar deneyin.'
+              : status >= 500
+                ? 'Yapay zekâ hizmetinde geçici bir hata oluştu. Lütfen biraz sonra tekrar deneyin.'
+                : fallbackMessage)
+        : fallbackMessage;
+
     return res.status(status).json({
-      error: error.userMessage ||
-        (status === 503
-          ? 'إعدادات خدمة الذكاء الاصطناعي غير مكتملة.'
-          : error.message || 'حدث خطأ أثناء معالجة طلبك. حاول مرة أخرى.')
+      error: error.userMessage || localizedMessage
     });
   }
 });
