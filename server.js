@@ -14,7 +14,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = Number(process.env.PORT || 3000);
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 const AI_PROVIDER = String(process.env.AI_PROVIDER || 'gemini').toLowerCase();
 const GEMINI_GOOGLE_SEARCH_ENABLED = ['1', 'true', 'yes', 'on'].includes(
   String(process.env.GEMINI_GOOGLE_SEARCH_ENABLED || '').toLowerCase()
