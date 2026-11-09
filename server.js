@@ -137,6 +137,7 @@ function buildSystemPrompt(lang, domain = null) {
 عند تزويدك بمصادر بحث، اعتمد على محتواها ولا تدّعِ فتح مصادر لم تُفتح.
 في الأخبار الحديثة استخدم المقالات التي اجتازت التحقق من صفحة المقال الأصلية وفلترة الصلة بالسؤال فقط.
 لا تدرج خبراً لمجرد أنه حديث؛ يجب أن يكون مرتبطاً مباشرة بموضوع السؤال ومكانه ومجاله.
+إذا كان السؤال عن اقتصاد دولة، فلا تدرج أخبار الحروب أو الرياضة أو السياسة العامة إلا إذا كان لها أثر اقتصادي موضح في المقال الأصلي.
 لا تستنتج وقتاً مفقوداً ولا تستخدم تاريخ التحديث بدلاً من تاريخ النشر.
 ميّز بين الخبر المؤكد والتحليل والرأي. عند غياب مصدر كافٍ، قل إنك لم تتمكن من التحقق بدلاً من التخمين.
 لا تدّعِ إجراء حساب مستقل ما لم تستخدم أداة حساب فعلية.
@@ -1024,6 +1025,8 @@ app.post('/api/chat', (req, res, next) => {
       }
     }
 
+    const domain = detectKnowledgeDomain(message);
+
     const messages = [
       { role: 'system', content: buildSystemPrompt(lang, domain) },
       ...history
@@ -1032,7 +1035,6 @@ app.post('/api/chat', (req, res, next) => {
     let sources = [];
     let newsNotice = '';
 
-    const domain = detectKnowledgeDomain(message);
     const searchNeeded = detectSearchNeeds(message, domain);
     const newsMode = searchNeeded && detectNewsIntent(message);
 
