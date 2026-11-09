@@ -851,7 +851,7 @@ async function callGemini(messages, model = GEMINI_MODEL, options = {}) {
   }
 
   let response;
-  const retryDelays = [800, 1600];
+  const retryDelays = []; // Fail over quickly instead of exhausting the client timeout
 
   for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
     try {
