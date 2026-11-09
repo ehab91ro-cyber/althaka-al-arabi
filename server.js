@@ -14,6 +14,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = Number(process.env.PORT || 3000);
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const AI_PROVIDER = String(process.env.AI_PROVIDER || 'groq').toLowerCase();
 const VISION_MODEL = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
 const AUDIO_MODEL = process.env.GROQ_AUDIO_MODEL || 'whisper-large-v3-turbo';
 const NEWS_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -26,6 +28,7 @@ const KNOWLEDGE_MAP = require('./knowledge/domains.json');
 const USER_AGENT = 'ArabicSuperIntelligence/3.0';
 
 let groqClient = null;
+let geminiClientPromise = null;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -79,6 +82,25 @@ function getGroqClient() {
   }
 
   return groqClient;
+}
+
+async function getGeminiClient() {
+  if (!process.env.GEMINI_API_KEY) {
+    const error = new Error('GEMINI_API_KEY غير مضبوط في إعدادات الخادم.');
+    error.status = 503;
+    throw error;
+  }
+
+  if (!geminiClientPromise) {
+    geminiClientPromise = import('@google/genai').then(({ GoogleGenAI }) =>
+      new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+    ).catch(error => {
+      geminiClientPromise = null;
+      throw error;
+    });
+  }
+
+  return geminiClientPromise;
 }
 
 function normalizeText(value, max = 4000) {
@@ -747,6 +769,86 @@ function isContextSizeError(error) {
     message.includes('maximum context');
 }
 
+function convertMessagesForGemini(messages) {
+  let systemInstruction = '';
+  const contents = [];
+
+  for (const message of messages) {
+    if (!message || typeof message !== 'object') continue;
+
+    if (message.role === 'system') {
+      systemInstruction += (systemInstruction ? '\n\n' : '') + String(message.content || '');
+      continue;
+    }
+
+    const role = message.role === 'assistant' ? 'model' : 'user';
+    const parts = [];
+    const value = message.content;
+
+    if (typeof value === 'string') {
+      if (value) parts.push({ text: value });
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        if (typeof item === 'string') {
+          if (item) parts.push({ text: item });
+          continue;
+        }
+        if (item?.type === 'text' && item.text) {
+          parts.push({ text: String(item.text) });
+          continue;
+        }
+        const dataUrl = item?.image_url?.url;
+        if (item?.type === 'image_url' && typeof dataUrl === 'string') {
+          const match = dataUrl.match(/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=]+)$/i);
+          if (match) {
+            parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
+          }
+        }
+      }
+    }
+
+    if (parts.length) contents.push({ role, parts });
+  }
+
+  return { systemInstruction, contents };
+}
+
+async function callGemini(messages, model = GEMINI_MODEL) {
+  const ai = await getGeminiClient();
+  const converted = convertMessagesForGemini(messages);
+
+  if (!converted.contents.length) {
+    throw new Error('لا يوجد محتوى صالح لإرساله إلى Gemini.');
+  }
+
+  const response = await ai.models.generateContent({
+    model,
+    contents: converted.contents,
+    config: {
+      systemInstruction: converted.systemInstruction || undefined,
+      temperature: 0.3,
+      maxOutputTokens: 2000
+    }
+  });
+
+  const answer = typeof response.text === 'function' ? response.text() : response.text;
+  if (!answer) throw new Error('لم يُرجع Gemini إجابة نصية.');
+  return { answer: String(answer), provider: 'gemini', model };
+}
+
+async function callAssistant(messages, options = {}) {
+  const requestedProvider = options.provider || AI_PROVIDER;
+
+  if (requestedProvider === 'gemini') {
+    return callGemini(messages, options.model || GEMINI_MODEL);
+  }
+
+  const completion = await callGroq(messages, options.model || GROQ_MODEL);
+  const answer = completion?.choices?.[0]?.message?.content;
+  if (!answer) throw new Error('لم يُرجع Groq إجابة نصية.');
+  return { answer, provider: 'groq', model: options.model || GROQ_MODEL };
+}
+
 async function callGroq(messages, model = GROQ_MODEL) {
   try {
     return await getGroqClient().chat.completions.create({
@@ -960,7 +1062,9 @@ app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
     service: 'الذكاء العربي الخارق',
-    model: GROQ_MODEL,
+    model: AI_PROVIDER === 'gemini' ? GEMINI_MODEL : GROQ_MODEL,
+    provider: AI_PROVIDER === 'gemini' ? 'gemini' : 'groq',
+    geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
     visionModel: VISION_MODEL,
     audioModel: AUDIO_MODEL,
     groqConfigured: Boolean(process.env.GROQ_API_KEY),
@@ -1083,14 +1187,20 @@ app.post('/api/chat', (req, res, next) => {
       content: userContent
     });
 
-    const model = images.length ? VISION_MODEL : GROQ_MODEL;
-    const completion = await callGroq(messages, model);
-    const answer = completion?.choices?.[0]?.message?.content;
-
-    if (!answer) throw new Error('لم يُرجع النموذج إجابة.');
+    const selectedProvider = AI_PROVIDER === 'gemini' ? 'gemini' : 'groq';
+    const selectedModel = selectedProvider === 'gemini'
+      ? GEMINI_MODEL
+      : images.length ? VISION_MODEL : GROQ_MODEL;
+    const completion = await callAssistant(messages, {
+      provider: selectedProvider,
+      model: selectedModel
+    });
+    const answer = completion.answer;
 
     return res.json({
       answer,
+      aiProvider: completion.provider,
+      aiModel: completion.model,
       language: lang,
       ...(transcript ? { transcription: transcript } : {}),
       sources: sources.slice(0, 12).map(source => ({
@@ -1157,7 +1267,9 @@ app.use((error, _req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log(`الذكاء العربي الخارق يعمل على المنفذ ${PORT}`);
+  console.log(`AI provider: ${AI_PROVIDER}`);
   console.log(`Groq model: ${GROQ_MODEL}`);
+  console.log(`Gemini model: ${GEMINI_MODEL}`);
   console.log(`Vision model: ${VISION_MODEL}`);
   console.log(`Tavily search: ${process.env.TAVILY_API_KEY ? 'configured' : 'not configured'}`);
 });
