@@ -96,11 +96,9 @@ function detectLanguage(text, requested) {
   const latin = (value.match(/[A-Za-z]/g) || []).length;
   if (arabic > latin) return 'ar';
 
-  if (/\b(merhaba|nasıl|neden|bugün|haberler|teşekkür|lütfen|istanbul|Türkiye)\b/i.test(value)) {
+  if (/\\b(merhaba|nasıl|neden|bugün|haberler|teşekkür|lütfen|istanbul|türkiye|hangi|nerede|kim|kaç|nedir|hakkında|bilgi|ülke|şehir|köy|spor|hava|durumu|sonuç|skor|maç|takım|başkent|ekonomi|savaş|tarih|fiyat|bugun|icin|için)\\b/i.test(value)) {
     return 'tr';
   }
-
-  return 'en';
 }
 
 function languageName(lang) {
@@ -146,7 +144,7 @@ ${domainRules}`;
 
 function detectSearchNeeds(message, domain = null) {
   const text = String(message || '');
-  const explicit = /(ابحث|بحث|آخر|أحدث|اليوم|الآن|حالياً|خبر|أخبار|سعر|نتائج|مصدر|مراجع|ويكيبيديا|معلومات حديثة|التطورات|latest|recent|today|now|news|search|current|price|source|developments|bugün|son|haber|güncel|araştır|şu anda|canlı)/i.test(text);
+  const explicit = /(ابحث|بحث|آخر|أحدث|اليوم|الآن|حالياً|خبر|أخبار|سعر|نتائج|مصدر|مراجع|ويكيبيديا|معلومات حديثة|التطورات|مباشر|مباشرة|ترتيب|النتيجة|latest|recent|today|now|news|search|current|price|source|developments|score|scores|standings|live|weather|forecast|exchange rate|bugün|son|haber|güncel|araştır|şu anda|canlı|skor|puan durumu|hava durumu|döviz kuru)/i.test(text);
   return Boolean(domain) || explicit;
 }
 
