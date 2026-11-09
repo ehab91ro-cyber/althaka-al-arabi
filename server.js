@@ -872,7 +872,8 @@ async function callGemini(messages, model = GEMINI_MODEL, options = {}) {
     const message = String(primaryError?.message || '');
     const overloaded =
       status === 503 ||
-      /high demand|temporarily unavailable|overloaded|\bUNAVAILABLE\b/i.test(message);
+      status === 429 ||
+      /high demand|temporarily unavailable|overloaded|\bUNAVAILABLE\b|quota exceeded|resource_exhausted/i.test(message);
 
     if (!overloaded || !GEMINI_FALLBACK_MODEL || GEMINI_FALLBACK_MODEL === model) {
       if (overloaded) {
@@ -890,8 +891,8 @@ async function callGemini(messages, model = GEMINI_MODEL, options = {}) {
       console.info(`Gemini fallback succeeded: ${usedModel}`);
     } catch (fallbackError) {
       console.error('Gemini fallback model failed:', fallbackError?.message || fallbackError);
-      fallbackError.userMessage = 'خدمة Gemini الرئيسية والاحتياطية مشغولتان مؤقتاً. أعد المحاولة بعد قليل؛ لم يتم حذف رسالتك.';
-      fallbackError.status = 503;
+      fallbackError.userMessage = 'تعذر الرد من نموذجي Gemini الأساسي والاحتياطي بسبب ضغط الخدمة أو حدود الاستخدام. لم يتم حذف رسالتك؛ تحقق من حصة Gemini أو أعد المحاولة بعد تجددها.';
+      fallbackError.status = Number(fallbackError?.status || fallbackError?.code || 503);
       throw fallbackError;
     }
   }
