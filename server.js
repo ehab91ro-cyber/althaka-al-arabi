@@ -1165,6 +1165,7 @@ app.post('/api/chat', (req, res, next) => {
 
   next();
 }, async (req, res) => {
+  let lang = 'ar';
   try {
     const body = req.body || {};
     const message = normalizeText(body.message || body.prompt, 12000);
@@ -1178,7 +1179,7 @@ app.post('/api/chat', (req, res, next) => {
       });
     }
 
-    const lang = detectLanguage(message, body.language || body.lang);
+    lang = detectLanguage(message, body.language || body.lang);
     const history = buildConversationHistory(parseHistoryField(body.history));
 
     const { images, documents } = extractUploadedContent(uploadedFiles);
